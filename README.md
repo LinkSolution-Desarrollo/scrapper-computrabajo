@@ -1,56 +1,56 @@
-# Computrabajo Job Scraper
+# Scraper de Empleos de Computrabajo
 
-This Python script uses Selenium to scrape job listings from a specific Computrabajo URL (focused on "desarrollador" roles in "Capital Federal, Argentina"). It extracts information like job title, company, location, and a direct link to the job posting, then saves this data into a `job_listings.csv` file.
+Este script de Python utiliza Selenium para extraer listados de empleos de una URL específica de Computrabajo (enfocada en roles de "desarrollador" en "Capital Federal, Argentina"). Extrae información como título del puesto, empresa, ubicación y un enlace directo a la publicación del empleo, y luego guarda estos datos en un archivo `job_listings.csv`.
 
-## Features
+## Características
 
-- Scrapes multiple pages of job listings.
-- Extracts: Job Title, Company Name, Location, Link to Job Posting.
-- Saves data to `job_listings.csv`.
-- Uses Selenium with ChromeDriver.
+- Extrae listados de empleos de múltiples páginas.
+- Extrae: Título del Puesto, Nombre de la Empresa, Ubicación, Enlace a la Publicación del Empleo.
+- Guarda los datos en `job_listings.csv`.
+- Utiliza Selenium con ChromeDriver.
 
-## Prerequisites
+## Prerrequisitos
 
-1.  **Python 3.x**: Ensure you have Python 3 installed. You can download it from [python.org](https://www.python.org/).
-2.  **Google Chrome**: The script is configured to use Google Chrome. Make sure you have it installed.
-3.  **ChromeDriver**: You need to download the ChromeDriver executable that matches your Google Chrome version.
-    *   Check your Chrome version: Go to `chrome://settings/help`.
-    *   Download ChromeDriver from the official site: [https://chromedriver.chromium.org/downloads](https://chromedriver.chromium.org/downloads).
-    *   **Important**: Place the `chromedriver` executable in a directory that is part of your system's PATH environment variable (e.g., `/usr/local/bin` on Linux/macOS, or a specific folder you add to PATH on Windows). Alternatively, you can modify the `scraper.py` script to specify the path to `chromedriver.exe` directly when `webdriver.Chrome()` is initialized (e.g., `driver = webdriver.Chrome(executable_path='/path/to/your/chromedriver')`).
+1.  **Python 3.x**: Asegúrate de tener Python 3 instalado. Puedes descargarlo desde [python.org](https://www.python.org/).
+2.  **Google Chrome**: El script está configurado para usar Google Chrome. Asegúrate de tenerlo instalado.
+3.  **ChromeDriver**: Necesitas descargar el ejecutable de ChromeDriver que coincida con tu versión de Google Chrome.
+    *   Verifica tu versión de Chrome: Ve a `chrome://settings/help`.
+    *   Descarga ChromeDriver desde el sitio oficial: [https://chromedriver.chromium.org/downloads](https://chromedriver.chromium.org/downloads).
+    *   **Importante**: Coloca el ejecutable `chromedriver` en un directorio que forme parte de la variable de entorno PATH de tu sistema (por ejemplo, `/usr/local/bin` en Linux/macOS, o una carpeta específica que agregues al PATH en Windows). Alternativamente, puedes modificar el script `scraper.py` para especificar la ruta a `chromedriver.exe` directamente cuando se inicializa `webdriver.Chrome()` (por ejemplo, `driver = webdriver.Chrome(executable_path='/ruta/a/tu/chromedriver')`).
 
-## Setup
+## Configuración
 
-1.  **Clone the repository (if applicable) or download the files.**
+1.  **Clona el repositorio (si aplica) o descarga los archivos.**
 
-2.  **Create a virtual environment (recommended)**:
+2.  **Crea un entorno virtual (recomendado)**:
     ```bash
     python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    source venv/bin/activate  # En Windows: venv\Scripts\activate
     ```
 
-3.  **Install dependencies**:
-    Navigate to the project directory in your terminal and run:
+3.  **Instala las dependencias**:
+    Navega al directorio del proyecto en tu terminal y ejecuta:
     ```bash
     pip install -r requirements.txt
     ```
-    This will install `selenium`.
+    Esto instalará `selenium`.
 
-## Usage
+## Uso
 
-1.  **Ensure ChromeDriver is set up correctly** (see Prerequisites).
+1.  **Asegúrate de que ChromeDriver esté configurado correctamente** (ver Prerrequisitos).
 
-2.  **Run the scraper**:
-    Execute the script from the project's root directory:
+2.  **Ejecuta el scraper**:
+    Ejecuta el script desde el directorio raíz del proyecto:
     ```bash
     python scraper.py
     ```
 
-3.  **Output**:
-    *   The script will print progress messages to the console, including the number of pages scraped and total jobs found.
-    *   Once finished, a `job_listings.csv` file will be created in the same directory, containing the scraped job data.
+3.  **Salida**:
+    *   El script imprimirá mensajes de progreso en la consola, incluyendo el número de páginas extraídas y el total de empleos encontrados.
+    *   Una vez finalizado, se creará un archivo `job_listings.csv` en el mismo directorio, conteniendo los datos de los empleos extraídos.
 
-## Troubleshooting
+## Solución de Problemas
 
-*   **`WebDriverException: 'chromedriver' executable needs to be in PATH`**: This means ChromeDriver is not correctly installed in your PATH or the script cannot find it. Double-check the ChromeDriver setup instructions.
-*   **Scraper stops or encounters errors**: Websites change their structure frequently. If the scraper fails, the HTML selectors in `scraper.py` might need to be updated. You can inspect the website manually using browser developer tools to find the new selectors.
-*   **Cookie pop-ups or other modals**: The script includes a basic attempt to handle cookie pop-ups. If new modals interfere, their specific selectors might need to be added to the script for handling.
+*   **`WebDriverException: 'chromedriver' executable needs to be in PATH`**: Esto significa que ChromeDriver no está instalado correctamente en tu PATH o que el script no puede encontrarlo. Verifica nuevamente las instrucciones de configuración de ChromeDriver.
+*   **El scraper se detiene o encuentra errores**: Los sitios web cambian su estructura frecuentemente. Si el scraper falla, es posible que los selectores HTML en `scraper.py` necesiten ser actualizados. Puedes inspeccionar el sitio web manualmente usando las herramientas de desarrollador del navegador para encontrar los nuevos selectores.
+*   **Pop-ups de cookies u otros modales**: El script incluye un intento básico para manejar los pop-ups de cookies. Si nuevos modales interfieren, es posible que se necesite agregar sus selectores específicos al script para manejarlos.
