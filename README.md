@@ -27,7 +27,8 @@ pip install -r requirements.txt
 
 1.  **Clona el repositorio (si aún no lo has hecho):**
     ```bash
-
+  git clone https://github.com/Ezecabrera6/scrapper-computrabajo.git
+  cd scrapper-computrabajo
 
 2.  **Instala las dependencias:**
     Como se mencionó en los prerrequisitos, puedes instalar las dependencias usando el archivo `requirements.txt`:
