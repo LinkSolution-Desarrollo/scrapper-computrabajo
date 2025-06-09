@@ -54,3 +54,46 @@ Este script de Python utiliza Selenium para extraer listados de empleos de una U
 *   **`WebDriverException: 'chromedriver' executable needs to be in PATH`**: Esto significa que ChromeDriver no está instalado correctamente en tu PATH o que el script no puede encontrarlo. Verifica nuevamente las instrucciones de configuración de ChromeDriver.
 *   **El scraper se detiene o encuentra errores**: Los sitios web cambian su estructura frecuentemente. Si el scraper falla, es posible que los selectores HTML en `scraper.py` necesiten ser actualizados. Puedes inspeccionar el sitio web manualmente usando las herramientas de desarrollador del navegador para encontrar los nuevos selectores.
 *   **Pop-ups de cookies u otros modales**: El script incluye un intento básico para manejar los pop-ups de cookies. Si nuevos modales interfieren, es posible que se necesite agregar sus selectores específicos al script para manejarlos.
+
+## Pandape Login Scraper (`pandape_login.py`)
+
+This script uses Selenium to log into the Pandape ATS website.
+
+### Prerequisites
+
+- Python 3.x
+- Google Chrome browser installed
+- The necessary Python packages, as listed in `requirements.txt`. Install them using:
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+### Setup Credentials
+
+The script expects Pandape credentials to be set as environment variables for security. Please set the following variables in your environment:
+
+- `PANDAPE_USERNAME`: Your Pandape username or email.
+- `PANDAPE_PASSWORD`: Your Pandape password.
+
+**Example (Linux/macOS):**
+```bash
+export PANDAPE_USERNAME="your_username"
+export PANDAPE_PASSWORD="your_password"
+```
+
+**Example (Windows PowerShell):**
+```powershell
+$env:PANDAPE_USERNAME="your_username"
+$env:PANDAPE_PASSWORD="your_password"
+```
+You might need to add these to your shell's profile file (e.g., `.bashrc`, `.zshrc`, PowerShell Profile) for them to persist across sessions.
+
+### Running the Script
+
+Once the prerequisites are met and credentials are set up, you can run the script:
+
+```bash
+python pandape_login.py
+```
+
+The script will attempt to log in and will keep the browser open for a few seconds for you to observe the result. It will also print status messages to the console. If errors occur, it may save a screenshot (`pandape_login_error.png`) and the page source (`pandape_login_error_source.html`) for debugging.
