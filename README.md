@@ -27,10 +27,10 @@ pip install -r requirements.txt
 
 1.  **Clona el repositorio (si aún no lo has hecho):**
     ```bash
-    git clone <URL_DEL_REPOSITORIO>
-    cd <NOMBRE_DEL_DIRECTORIO_DEL_REPOSITORIO>
+    git clone <[URL_DEL_REPOSITORIO](https://github.com/Ezecabrera6/scrapper-computrabajo.git)>
+    cd <scrapper-computrabajo>
     ```
-    *Reemplaza `<URL_DEL_REPOSITORIO>` con la URL real del repositorio y `<NOMBRE_DEL_DIRECTORIO_DEL_REPOSITORIO>` con el nombre del directorio que se crea al clonarlo.*
+    
 
 2.  **Instala las dependencias:**
     Como se mencionó en los prerrequisitos, puedes instalar las dependencias usando el archivo `requirements.txt`:
