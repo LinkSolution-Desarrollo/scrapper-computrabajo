@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# Entornos virtuales
+.venv/
+env/
+venv/
+
+# Docker
+*.log
+.dockerignore
+
+# Entorno
+.env
+
+# Otros
+*.zip

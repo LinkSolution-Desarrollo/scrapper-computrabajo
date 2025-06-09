@@ -5,15 +5,21 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
 import requests
 import re
-
+import os
+from dotenv import load_dotenv
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+
+# Cargar variables del entorno
+load_dotenv()
+usuario = os.environ.get("USUARIO")
+clave = os.environ.get("CLAVE")
 
 # Configuración de Chrome
 options = Options()
 options.add_argument("--start-maximized")  # abre el navegador maximizado
-
 # options.add_argument("--headless")  # Descomentá si querés que se ejecute sin abrir ventana
+
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 try:
