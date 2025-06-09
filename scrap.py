@@ -114,6 +114,8 @@ try:
                     # dni sigue siendo "No encontrado"
 
                 direccion = safe_extract_text(driver, By.CSS_SELECTOR, "span.ml-20")
+                resumen = safe_extract_text(driver, By.CSS_SELECTOR, "div#Summary p.text-break-word")
+                salario_deseado = safe_extract_text(driver, By.CSS_SELECTOR, "div#Salary div.col-9 > div")
 
                 print(f"Vacante: {vacante}")
                 print(f"Nombre: {nombre}")
@@ -122,6 +124,8 @@ try:
                 print(f"Email: {email}")
                 print(f"DNI: {dni}")
                 print(f"Dirección: {direccion}")
+                print(f"Resumen: {resumen}")
+                print(f"Salario Deseado: {salario_deseado}")
 
                 data = {
                     "vacante": vacante,
@@ -131,6 +135,8 @@ try:
                     "email": email,
                     "dni": dni,
                     "direccion": direccion,
+                    "resumen": resumen,
+                    "salario_deseado": salario_deseado, # New field
                     "source":"computrabajo",
                 }
 
