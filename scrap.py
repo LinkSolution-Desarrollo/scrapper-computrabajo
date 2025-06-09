@@ -10,6 +10,29 @@ from dotenv import load_dotenv
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 
+# Helper functions
+from selenium.common.exceptions import NoSuchElementException
+
+def safe_extract_text(driver, by, value, default="No encontrado"):
+    try:
+        return driver.find_element(by, value).text.strip() # Added strip()
+    except NoSuchElementException:
+        # print(f"Element not found for text: {by} {value}") # Optional: for debugging
+        return default
+    except Exception as e: # Catch any other unexpected error during .text or .strip()
+        # print(f"Other error extracting text for {by} {value}: {e}") # Optional: for debugging
+        return default
+
+def safe_extract_attribute(driver, by, value, attribute, default="No encontrado"):
+    try:
+        return driver.find_element(by, value).get_attribute(attribute)
+    except NoSuchElementException:
+        # print(f"Element not found for attribute: {by} {value}") # Optional: for debugging
+        return default
+    except Exception as e: # Catch any other unexpected error during .get_attribute()
+        # print(f"Other error extracting attribute for {by} {value}: {e}") # Optional: for debugging
+        return default
+
 # Cargar variables del entorno
 load_dotenv()
 usuario = os.environ.get("USUARIO")
@@ -53,10 +76,7 @@ try:
         time.sleep(3)
 
         # Extraer nombre de la vacante
-        try:
-            vacante = driver.find_element(By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140").text
-        except:
-            vacante = "No encontrada"
+        vacante = safe_extract_text(driver, By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140")
 
         # Buscar candidatos (match-link)
         candidatos = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
@@ -69,43 +89,31 @@ try:
                 candidato.click()
                 time.sleep(3)
 
-                try:
-                    nombre = driver.find_element(By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize").text
-                except:
-                    nombre = "No encontrado"
+                nombre = safe_extract_text(driver, By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize")
+                numero = safe_extract_text(driver, By.CSS_SELECTOR, "a.js_WhatsappLink")
+                cv = safe_extract_attribute(driver, By.CSS_SELECTOR, "a[title$='.pdf']", "href")
+                email = safe_extract_text(driver, By.CSS_SELECTOR, "a.text-nowrap.mb-05 span")
 
-                try:
-                    numero = driver.find_element(By.CSS_SELECTOR, "a.js_WhatsappLink").text
-                except:
-                    numero = "No encontrado"
-
-                try:
-                    cv = driver.find_element(By.CSS_SELECTOR, "a[title$='.pdf']").get_attribute("href")
-                except:
-                    cv = "No encontrado"
-
-                try:
-                    email = driver.find_element(By.CSS_SELECTOR, "a.text-nowrap.mb-05 span").text
-                except:
-                    email = "No encontrado"
-
+                dni = "No encontrado" # Default value
                 try:
                     div_element = driver.find_element(By.XPATH, "//div[span[text()='Nacionalidad']]")
                     driver.execute_script("arguments[0].scrollIntoView(true);", div_element)
                     time.sleep(1)  # para asegurar que el scroll y renderizado se completen
                     div_text = div_element.text
                     dni_match = re.search(r"D\.N\.I\s*(\d+)", div_text)
-                    dni = dni_match.group(1) if dni_match else None
-                    if dni is None:
-                        print("No se encontró DNI en el texto:", div_text)
+                    if dni_match:
+                        dni = dni_match.group(1)
+                    else:
+                        print(f"D.N.I. no encontrado en el texto: '{div_text}'")
+                        # dni sigue siendo "No encontrado"
+                except NoSuchElementException:
+                    print("No se encontró el campo/div de Nacionalidad para extraer DNI.")
+                    # dni sigue siendo "No encontrado"
                 except Exception as e:
-                    print(f"Error al obtener DNI: {e}")
-                    dni = None
+                    print(f"Error inesperado al obtener DNI: {e}")
+                    # dni sigue siendo "No encontrado"
 
-                try:
-                    direccion = driver.find_element(By.CSS_SELECTOR, "span.ml-20").text.strip()
-                except:
-                    direccion = "No encontrado"
+                direccion = safe_extract_text(driver, By.CSS_SELECTOR, "span.ml-20")
 
                 print(f"Vacante: {vacante}")
                 print(f"Nombre: {nombre}")
@@ -127,13 +135,25 @@ try:
                 }
 
                 try:
-                    response = requests.post("http://10.20.62.94:5678/webhook/insert", json=data)
+                    # It's good practice to add a timeout to network requests
+                    response = requests.post("http://10.20.62.94:5678/webhook/insert", json=data, timeout=10)
+
                     if response.status_code == 200:
                         print("Datos enviados correctamente.")
                     else:
-                        print(f"Error al enviar datos: {response.status_code} - {response.text}")
+                        # The server responded with an HTTP error code
+                        print(f"Error del servidor al enviar datos: Código {response.status_code} - Respuesta: {response.text}")
+
+                except requests.exceptions.Timeout:
+                    print("Error en la petición HTTP: Timeout - El servidor (10.20.62.94:5678) tardó demasiado en responder.")
+                except requests.exceptions.ConnectionError:
+                    print("Error en la petición HTTP: Error de conexión - No se pudo conectar al servidor (10.20.62.94:5678). Verifica la red y que el servidor esté activo.")
+                except requests.exceptions.RequestException as re:
+                    # For other requests-related issues (e.g., invalid URL, too many redirects)
+                    print(f"Error en la petición HTTP: {re}")
                 except Exception as e:
-                    print(f"Error en la petición HTTP: {e}")
+                    # For any other unexpected error not caught above
+                    print(f"Error inesperado durante el envío de datos HTTP: {e}")
 
                 time.sleep(2)
 
