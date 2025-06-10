@@ -80,7 +80,7 @@ try:
 
         # Buscar candidatos (match-link)
         candidatos = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
-        total = min(100, len(candidatos))  # Máximo 5 por vacante
+        total = min(100, len(candidatos))  
 
         for i in range(total):
             candidatos_actualizados = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
@@ -98,7 +98,7 @@ try:
                 try:
                     div_element = driver.find_element(By.XPATH, "//div[span[text()='Nacionalidad']]")
                     driver.execute_script("arguments[0].scrollIntoView(true);", div_element)
-                    time.sleep(1)  # para asegurar que el scroll y renderizado se completen
+                    time.sleep(1)  # para asegurar que el scroll y renderizado se complesten
                     div_text = div_element.text
                     dni_match = re.search(r"D\.N\.I\s*(\d+)", div_text)
                     if dni_match:
@@ -136,7 +136,7 @@ try:
                     "dni": dni,
                     "direccion": direccion,
                     "resumen": resumen,
-                    "salario_deseado": salario_deseado, # New field
+                    "salario_deseado": salario_deseado, 
                     "source":"computrabajo",
                 }
 
