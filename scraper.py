@@ -13,38 +13,42 @@ import time
 def safe_extract_text(driver, by, value, default="No encontrado"):
     try:
         return driver.find_element(by, value).text.strip()
-    except NoSuchElementException:
-        return default
     except Exception:
         return default
 
 def safe_extract_attribute(driver, by, value, attribute, default="No encontrado"):
     try:
         return driver.find_element(by, value).get_attribute(attribute)
-    except NoSuchElementException:
-        return default
     except Exception:
         return default
 
-# Cargar credenciales desde .env (opcional)
+# Cargar variables del entorno
 load_dotenv()
 usuario = os.environ.get("USUARIO")
 clave = os.environ.get("CLAVE")
 
-# Configuración del navegador
+# Configuración de Chrome para Docker
 options = Options()
-options.add_argument("--start-maximized")
+options.binary_location = os.getenv("CHROME_BIN", "/usr/bin/google-chrome-stable")
+options.add_argument("--headless")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--disable-extensions")
+options.add_argument("--remote-debugging-port=9222")
+options.add_argument("window-size=1920,1080")
+options.add_argument("user-agent=Mozilla/5.0")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 try:
-    driver.get("https://ats.pandape.com/Company/Vacancy")
-    time.sleep(2)
+    driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=0&RecruitmentType=0")
+    time.sleep(5)
 
     driver.find_element(By.ID, "Username").send_keys("Flor.leyva@linksolution.com.ar")
     driver.find_element(By.ID, "Password").send_keys("Febrero2023")
     driver.find_element(By.ID, "btLogin").click()
-    time.sleep(5)
+    time.sleep(10)
 
     try:
         driver.find_element(By.ID, "AllowCookiesButton").click()
@@ -60,59 +64,44 @@ try:
         driver.get(href)
         time.sleep(3)
 
-             # Abrir vista previa en nueva pestaña
+        # ---------- DATOS DE LA VACANTE DESDE VISTA PREVIA ----------
         try:
-            preview_button = driver.find_element(By.CSS_SELECTOR, "a[title='Vista previa']")
-            preview_link = preview_button.get_attribute("href")
-
-            driver.execute_script("window.open(arguments[0]);", preview_link)
-            driver.switch_to.window(driver.window_handles[-1])
+            preview_btn = driver.find_element(By.CSS_SELECTOR, "a[title='Vista previa']")
+            preview_href = preview_btn.get_attribute("href")
+            driver.execute_script("window.open(arguments[0]);", preview_href)
+            driver.switch_to.window(driver.window_handles[1])
             time.sleep(3)
 
             titulo = safe_extract_text(driver, By.CSS_SELECTOR, "h1.fw-600.color-title")
+            descripcion = safe_extract_text(driver, By.CSS_SELECTOR, "div.order-1 > div.mb-20")
+            requisitos = safe_extract_text(driver, By.CSS_SELECTOR, "div#Requirements")
+            valorado = safe_extract_text(driver, By.CSS_SELECTOR, "div#Valued")
 
-            try:
-                descripcion_div = driver.find_element(By.CSS_SELECTOR, "div.order-1")
-                descripcion = descripcion_div.text.strip()
-            except Exception:
-                descripcion = "No disponible"
+            print("\n--- VACANTE ---")
+            print("Título:", titulo)
+            print("Requisitos:", requisitos.replace("\n", " ")[:100])
+            print("Valorado:", valorado.replace("\n", " ")[:100])
 
-            try:
-                requisitos_div = driver.find_element(By.ID, "Requirements")
-                requisitos = requisitos_div.text.strip()
-            except Exception:
-                requisitos = "No disponible"
-
-            try:
-                valorado_div = driver.find_element(By.ID, "Valued")
-                valorado = valorado_div.text.strip()
-            except Exception:
-                valorado = "No disponible"
-
-            vacante_data = {
-                "url": preview_link,
+            data_vacante = {
                 "titulo": titulo,
                 "descripcion": descripcion,
                 "requisitos": requisitos,
                 "valorado": valorado,
-                "fuente": "pandape"
+                "source": "pandape"
             }
 
             try:
-                response = requests.post("http://10.20.62.94:5678/webhook/vacant", json=vacante_data, timeout=10)
-                if response.status_code == 200:
-                    print("Vista previa enviada correctamente.")
-                else:
-                    print(f"Error al enviar vista previa: {response.status_code} - {response.text}")
+                r = requests.post("http://10.20.62.94:5678/webhook/vacant", json=data_vacante, timeout=10)
+                print("✅ Vacante enviada" if r.status_code == 200 else f"❌ Error vacante {r.status_code}: {r.text}")
             except Exception as e:
-                print(f"Error al enviar vista previa: {e}")
+                print(f"❌ Error al enviar vacante: {e}")
 
             driver.close()
             driver.switch_to.window(driver.window_handles[0])
         except Exception as e:
-            print(f"No se pudo abrir la vista previa: {e}")
+            print(f"⚠️ No se pudo abrir la vista previa: {e}")
 
-
+        # ---------- CANDIDATOS ----------
         vacante = safe_extract_text(driver, By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140")
         candidatos = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
         total = min(100, len(candidatos))
@@ -131,20 +120,16 @@ try:
 
                 dni = "No encontrado"
                 try:
-                    div_element = driver.find_element(By.XPATH, "//div[span[text()='Nacionalidad']]")
-                    driver.execute_script("arguments[0].scrollIntoView(true);", div_element)
+                    div = driver.find_element(By.XPATH, "//div[span[text()='Nacionalidad']]")
+                    driver.execute_script("arguments[0].scrollIntoView(true);", div)
                     time.sleep(1)
-                    div_text = div_element.text
-                    dni_match = re.search(r"D\.N\.I\s*(\d+)", div_text)
+                    dni_match = re.search(r"D\.N\.I\s*(\d+)", div.text)
                     if dni_match:
                         dni = dni_match.group(1)
-                    else:
-                        print(f"D.N.I. no encontrado en el texto: '{div_text}'")
-                except NoSuchElementException:
-                    print("No se encontró el campo/div de Nacionalidad para extraer DNI.")
-                except Exception as e:
-                    print(f"Error inesperado al obtener DNI: {e}")
+                except:
+                    pass
 
+                # Aquí extraemos las respuestas del filtro
                 try:
                     resultados_tab = driver.find_element(By.ID, "ResultsTabAjax")
                     driver.execute_script("arguments[0].click();", resultados_tab)
@@ -187,6 +172,7 @@ try:
                 resumen = safe_extract_text(driver, By.CSS_SELECTOR, "div#Summary p.text-break-word")
                 salario_deseado = safe_extract_text(driver, By.CSS_SELECTOR, "div#Salary div.col-9 > div")
 
+                print("\n--- CANDIDATO ---")
                 print(f"Vacante: {vacante}")
                 print(f"Nombre: {nombre}")
                 print(f"Número: {numero}")
@@ -209,28 +195,18 @@ try:
                     "resumen": resumen,
                     "salario_deseado": salario_deseado,
                     "respuestas_filtro": respuestas_filtro_texto,
-                    "source": "computrabajo",
+                    "source": "computrabajo"
                 }
 
                 try:
-                    response = requests.post("http://10.20.62.94:5678/webhook/insert", json=data, timeout=10)
-                    if response.status_code == 200:
-                        print("Datos enviados correctamente.")
-                    else:
-                        print(f"Error del servidor al enviar datos: Código {response.status_code} - Respuesta: {response.text}")
-                except requests.exceptions.Timeout:
-                    print("Error en la petición HTTP: Timeout")
-                except requests.exceptions.ConnectionError:
-                    print("Error en la petición HTTP: Conexión fallida")
-                except requests.exceptions.RequestException as re:
-                    print(f"Error en la petición HTTP: {re}")
+                    r = requests.post("http://10.20.62.94:5678/webhook/insert", json=data, timeout=10)
+                    print("✅ Candidato enviado" if r.status_code == 200 else f"❌ Error candidato {r.status_code}: {r.text}")
                 except Exception as e:
-                    print(f"Error inesperado durante el envío de datos HTTP: {e}")
+                    print(f"❌ Error HTTP candidato: {e}")
 
                 time.sleep(2)
-
             except Exception as e:
-                print(f"Error al hacer clic en el candidato #{i}: {e}")
+                print(f"⚠️ Error candidato #{i}: {e}")
                 continue
 
         print("-" * 60)
