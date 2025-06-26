@@ -9,6 +9,9 @@ import os
 from dotenv import load_dotenv
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+import boto3
+from urllib.parse import urlparse
+from boto3.session import Config
 
 def safe_extract_text(driver, by, value, default="No encontrado"):
     try:
@@ -21,6 +24,57 @@ def safe_extract_attribute(driver, by, value, attribute, default="No encontrado"
         return driver.find_element(by, value).get_attribute(attribute)
     except Exception:
         return default
+
+def download_file(url, local_folder="downloads"):
+    os.makedirs(local_folder, exist_ok=True)
+    filename = os.path.basename(urlparse(url).path) or f"cv_{int(time.time())}.pdf"
+    local_path = os.path.join(local_folder, filename)
+
+    try:
+        s = requests.Session()
+        # Pasar cookies de Selenium a requests
+        for cookie in driver.get_cookies():
+            s.cookies.set(cookie['name'], cookie['value'])
+
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": driver.current_url
+        }
+
+        response = s.get(url, headers=headers)
+        response.raise_for_status()
+
+        with open(local_path, "wb") as f:
+            f.write(response.content)
+
+        print(f"📥 Descargado: {filename}")
+        return local_path
+    except Exception as e:
+        print(f"❌ Error al descargar {url}: {e}")
+        return None
+
+def upload_to_s3(local_path, nombre="sin_nombre", dni="sin_dni"):
+    try:
+        s3 = boto3.client(
+            's3',
+            endpoint_url=os.getenv("MINIO_ENDPOINT"),
+            aws_access_key_id=os.getenv("MINIO_ACCESS_KEY"),
+            aws_secret_access_key=os.getenv("MINIO_SECRET_KEY"),
+            region_name='us-east-1',
+            config=Config(signature_version='s3v4', s3={'addressing_style': 'path'})
+        )
+
+        bucket = os.getenv("MINIO_BUCKET")
+        extension = os.path.splitext(local_path)[1] or ".pdf"
+        filename = f"{dni}{extension}"
+        with open(local_path, "rb") as f:
+            s3.upload_fileobj(f, bucket, filename)
+
+        print(f"📤 Subido a MinIO: {filename}")
+    except Exception as e:
+        print(f"❌ Error al subir a MinIO: {e}")
+
+
 
 # Cargar variables del entorno
 load_dotenv()
@@ -45,8 +99,8 @@ try:
     driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=0&RecruitmentType=0")
     time.sleep(5)
 
-    driver.find_element(By.ID, "Username").send_keys("Flor.leyva@linksolution.com.ar")
-    driver.find_element(By.ID, "Password").send_keys("Febrero2023")
+    driver.find_element(By.ID, "Username").send_keys(usuario)
+    driver.find_element(By.ID, "Password").send_keys(clave)
     driver.find_element(By.ID, "btLogin").click()
     time.sleep(10)
 
@@ -117,6 +171,12 @@ try:
                 numero = safe_extract_text(driver, By.CSS_SELECTOR, "a.js_WhatsappLink")
                 cv = safe_extract_attribute(driver, By.CSS_SELECTOR, "a[title$='.pdf']", "href")
                 email = safe_extract_text(driver, By.CSS_SELECTOR, "a.text-nowrap.mb-05 span")
+
+                if cv != "No encontrado":
+                    local_cv_path = download_file(cv)
+                    if local_cv_path:
+                        upload_to_s3(local_cv_path, nombre=nombre, dni=dni)
+
 
                 dni = "No encontrado"
                 try:
