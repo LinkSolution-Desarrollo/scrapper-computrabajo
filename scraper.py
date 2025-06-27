@@ -82,18 +82,22 @@ usuario = os.environ.get("USUARIO")
 clave = os.environ.get("CLAVE")
 
 # Configuración de Chrome para Docker
+# Configuración de Chrome
 options = Options()
-options.binary_location = os.getenv("CHROME_BIN", "/usr/bin/google-chrome-stable")
-options.add_argument("--headless")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--disable-gpu")
-options.add_argument("--disable-extensions")
-options.add_argument("--remote-debugging-port=9222")
-options.add_argument("window-size=1920,1080")
-options.add_argument("user-agent=Mozilla/5.0")
+# Solo descomentá estas si lo necesitás
+# options.binary_location = os.getenv("CHROME_BIN", "/usr/bin/google-chrome-stable")
+# options.add_argument("--headless")
+# options.add_argument("--no-sandbox")
+# options.add_argument("--disable-dev-shm-usage")
+# options.add_argument("--disable-gpu")
+# options.add_argument("--disable-extensions")
+# options.add_argument("--remote-debugging-port=9222")
+# options.add_argument("window-size=1920,1080")
+# options.add_argument("user-agent=Mozilla/5.0")
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+# Usar el ChromeDriver descargado manualmente
+service = Service(r"C:\tools\chromedriver.exe")
+driver = webdriver.Chrome(service=service, options=options)
 
 try:
     driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=0&RecruitmentType=0")
