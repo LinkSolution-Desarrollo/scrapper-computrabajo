@@ -48,10 +48,10 @@ def download_file(driver, url, local_folder="downloads"): # Pasamos driver como 
         with open(local_path, "wb") as f:
             f.write(response.content)
 
-        print(f"📥 Descargado: {filename}")
+        print(f" Descargado: {filename}")
         return local_path
     except Exception as e:
-        print(f"❌ Error al descargar {url}: {e}")
+        print(f" Error al descargar {url}: {e}")
         return None
 
 # driver global para que download_file pueda acceder a él si no se pasa como argumento.
@@ -78,9 +78,9 @@ def upload_to_s3(local_path, nombre="sin_nombre", dni="sin_dni"):
         with open(local_path, "rb") as f:
             s3.upload_fileobj(f, bucket, filename)
 
-        print(f"📤 Subido a MinIO: {filename}")
+        print(f" Subido a MinIO: {filename}")
     except Exception as e:
-        print(f"❌ Error al subir a MinIO: {e}")
+        print(f" Error al subir a MinIO: {e}")
 
 # Cargar variables del entorno
 load_dotenv()
@@ -111,11 +111,11 @@ else:
             default_linux_chrome_path = "/usr/bin/google-chrome-stable"
             if os.path.exists(default_linux_chrome_path):
                 options.binary_location = default_linux_chrome_path
-                print(f"ℹ️ CHROME_BIN no configurado, usando ruta por defecto de Linux: {default_linux_chrome_path}")
+                print(f" CHROME_BIN no configurado, usando ruta por defecto de Linux: {default_linux_chrome_path}")
             else:
-                print("⚠️ CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas (Windows/Linux).")
+                print(" CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas (Windows/Linux).")
         else:
-            print("⚠️ CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
+            print(" CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
 
 
 options.add_argument("--headless")
@@ -132,7 +132,7 @@ options.add_argument("user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537
 # Si el Dockerfile ya ha puesto un chromedriver compatible en el PATH (C:\tools),
 # webdriver-manager podría usarlo.
 try:
-    print("⚙️ Configurando ChromeDriver usando webdriver-manager...")
+    print(" Configurando ChromeDriver usando webdriver-manager...")
     # Especificar la ruta al ejecutable de Chrome para que webdriver-manager descargue el driver correcto
     # si options.binary_location está configurado.
     chrome_driver_manager_path_arg = None
@@ -148,9 +148,9 @@ try:
         # else: let it be None or "google-chrome" by default based on webdriver-manager's own logic
 
     service = Service(ChromeDriverManager(path=chrome_driver_manager_path_arg, chrome_type=chrome_type_param).install())
-    print("✅ ChromeDriver configurado.")
+    print(" ChromeDriver configurado.")
 except Exception as e:
-    print(f"❌ Error configurando ChromeDriver con webdriver-manager: {e}")
+    print(f" Error configurando ChromeDriver con webdriver-manager: {e}")
     print("Falling back to default ChromeDriver in PATH (esperado en C:\\tools\\chromedriver.exe)")
     # Fallback a la ruta esperada si webdriver-manager falla (aunque no debería)
     # o si se prefiere usar explícitamente el del Dockerfile.
@@ -173,12 +173,12 @@ try:
         driver.find_element(By.ID, "AllowCookiesButton").click()
         time.sleep(2)
     except NoSuchElementException:
-        print("ℹ️ No se encontró el botón de cookies o no fue necesario.")
+        print(" No se encontró el botón de cookies o no fue necesario.")
         pass # Continuar si no hay botón de cookies
 
     links = driver.find_elements(By.CSS_SELECTOR, "a.font-xl.fw-900.lh-120")
     hrefs = [link.get_attribute("href") for link in links]
-    print(f"🔗 Encontradas {len(hrefs)} vacantes.")
+    print(f" Encontradas {len(hrefs)} vacantes.")
 
     for href_idx, href in enumerate(hrefs):
         print(f"\nProcessing vacancy {href_idx + 1}/{len(hrefs)}: {href}")
@@ -223,14 +223,14 @@ try:
             try:
                 # Asegúrate que esta URL es accesible desde el contenedor
                 r = requests.post("http://10.20.62.94:5678/webhook/vacant", json=data_vacante, timeout=10)
-                print(f"API Vacante: {'✅ Enviada' if r.status_code == 200 else f'❌ Error {r.status_code}: {r.text}'}")
+                print(f"API Vacante: {' Enviada' if r.status_code == 200 else f' Error {r.status_code}: {r.text}'}")
             except Exception as e:
-                print(f"❌ Error al enviar vacante a API: {e}")
+                print(f" Error al enviar vacante a API: {e}")
 
             driver.close() # Cerrar la pestaña de vista previa
             driver.switch_to.window(driver.window_handles[0]) # Volver a la pestaña principal
         except Exception as e:
-            print(f"⚠️ No se pudo procesar la vista previa de la vacante: {e}")
+            print(f" No se pudo procesar la vista previa de la vacante: {e}")
             # Si la vista previa falla, asegurarse de estar en la ventana correcta si se abrió una nueva
             if len(driver.window_handles) > 1:
                 driver.close()
@@ -241,7 +241,7 @@ try:
         vacante_nombre_pagina = safe_extract_text(driver, By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140") # Nombre de la vacante en la página de candidatos
         candidatos_links = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
         total_candidatos_en_pagina = len(candidatos_links)
-        print(f"👥 Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{vacante_nombre_pagina}'.")
+        print(f" Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{vacante_nombre_pagina}'.")
 
         # Limitar el número de candidatos a procesar si es necesario (ej. MAX_CANDIDATOS_POR_VACANTE)
         # total_a_procesar = min(100, total_candidatos_en_pagina)
@@ -251,7 +251,7 @@ try:
             # Volver a encontrar los elementos para evitar StaleElementReferenceException
             candidatos_actualizados = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
             if i >= len(candidatos_actualizados):
-                print(f"⚠️ No se pudo encontrar el candidato #{i+1}, posiblemente la página cambió.")
+                print(f" No se pudo encontrar el candidato #{i+1}, posiblemente la página cambió.")
                 break
 
             try:
@@ -284,17 +284,17 @@ try:
                             if numbers_in_section:
                                 dni = numbers_in_section[0]
                 except Exception as e_dni:
-                    print(f"ℹ️ No se pudo extraer DNI automáticamente: {e_dni}")
+                    print(f" No se pudo extraer DNI automáticamente: {e_dni}")
                     pass
 
                 local_cv_path = None
                 if cv_url != "No encontrado":
-                    print(f"⬇️ Intentando descargar CV desde: {cv_url}")
+                    print(f" Intentando descargar CV desde: {cv_url}")
                     local_cv_path = download_file(driver, cv_url) # Pasar driver a download_file
                     if local_cv_path and os.getenv("MINIO_ENDPOINT"): # Solo subir si hay endpoint de MinIO
                         upload_to_s3(local_cv_path, nombre=nombre, dni=dni if dni != "No encontrado" else f"sindni_{int(time.time())}")
                 else:
-                    print("ℹ️ CV no disponible para este candidato.")
+                    print(" CV no disponible para este candidato.")
 
 
                 respuestas_filtro_texto = "No disponibles"
@@ -339,16 +339,16 @@ try:
                                 driver.execute_script("arguments[0].click();", close_button)
                                 time.sleep(1)
                             except Exception as e_close_modal:
-                                print(f"⚠️ No se pudo cerrar el modal de respuestas: {e_close_modal}")
+                                print(f" No se pudo cerrar el modal de respuestas: {e_close_modal}")
                         else:
-                            print("ℹ️ No se encontró el enlace 'Ver respuestas del cuestionario'.")
+                            print(" No se encontró el enlace 'Ver respuestas del cuestionario'.")
                     else:
-                        print("ℹ️ No se encontró la pestaña de Resultados (ResultsTabAjax).")
+                        print(" No se encontró la pestaña de Resultados (ResultsTabAjax).")
 
                 except NoSuchElementException:
-                    print("ℹ️ Pestaña de resultados o enlace de cuestionario no encontrado (NoSuchElement).")
+                    print(" Pestaña de resultados o enlace de cuestionario no encontrado (NoSuchElement).")
                 except Exception as e_filtro:
-                    print(f"⚠️ Error al obtener respuestas de filtro: {e_filtro}")
+                    print(f" Error al obtener respuestas de filtro: {e_filtro}")
                     respuestas_filtro_texto = "Error al extraer"
 
                 direccion_elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'icon-location')]/following-sibling::span")
@@ -391,22 +391,22 @@ try:
                 try:
                     # Asegúrate que esta URL es accesible desde el contenedor
                     r_cand = requests.post("http://10.20.62.94:5678/webhook/insert", json=data_candidato, timeout=10)
-                    print(f"API Candidato: {'✅ Enviado' if r_cand.status_code == 200 else f'❌ Error {r_cand.status_code}: {r_cand.text}'}")
+                    print(f"API Candidato: {' Enviado' if r_cand.status_code == 200 else f' Error {r_cand.status_code}: {r_cand.text}'}")
                 except Exception as e_http_cand:
-                    print(f"❌ Error HTTP al enviar candidato: {e_http_cand}")
+                    print(f" Error HTTP al enviar candidato: {e_http_cand}")
 
                 # Volver a la lista de candidatos
                 driver.back()
                 time.sleep(3) # Espera para que cargue la lista de nuevo
 
             except Exception as e_cand_loop:
-                print(f"⚠️ Error procesando candidato #{i + 1} ({nombre_candidato_link if 'nombre_candidato_link' in locals() else 'Nombre desconocido'}): {e_cand_loop}")
+                print(f" Error procesando candidato #{i + 1} ({nombre_candidato_link if 'nombre_candidato_link' in locals() else 'Nombre desconocido'}): {e_cand_loop}")
                 print("Intentando volver a la lista de candidatos...")
                 try:
                     driver.back() # Intenta volver atrás en caso de error grave en el candidato
                     time.sleep(3)
                 except Exception as e_back:
-                    print(f"❌ No se pudo volver atrás, intentando recargar página de vacantes: {e_back}")
+                    print(f" No se pudo volver atrás, intentando recargar página de vacantes: {e_back}")
                     # Es importante volver a la URL de la lista de candidatos de la vacante actual
                     current_vac_url = driver.current_url # Podría ser la URL del candidato o la lista
                     if "Candidate" in current_vac_url or "Match" in current_vac_url: # Si está en detalle de candidato
@@ -422,5 +422,5 @@ try:
 
 finally:
     if driver:
-        print("🚪 Cerrando el navegador...")
+        print(" Cerrando el navegador...")
         driver.quit()
