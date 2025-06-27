@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -117,9 +118,7 @@ else:
             print("⚠️ CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
 
 
-
-options.add_argument("--headless") #comentar en windows
-
+options.add_argument("--headless")
 options.add_argument("--no-sandbox") # Necesario para ejecutar como root en contenedores Docker Linux
 options.add_argument("--disable-dev-shm-usage") # Necesario para evitar problemas de recursos en Docker
 options.add_argument("--disable-gpu") # Recomendado para entornos headless/contenedores
@@ -208,8 +207,10 @@ try:
 
             print("\n--- VACANTE ---")
             print(f"Título: {titulo}")
-            print(f"Requisitos (primeros 100 chars): {requisitos.replace('\n', ' ')[:100]}")
-            print(f"Valorado (primeros 100 chars): {valorado.replace('\n', ' ')[:100]}")
+            requisitos_preview = (requisitos.replace('\n', ' ')[:100]) if requisitos != "No encontrado" else "No encontrado"
+            valorado_preview = (valorado.replace('\n', ' ')[:100]) if valorado != "No encontrado" else "No encontrado"
+            print(f"Requisitos (primeros 100 chars): {requisitos_preview}")
+            print(f"Valorado (primeros 100 chars): {valorado_preview}")
 
             data_vacante = {
                 "titulo": titulo,
@@ -367,7 +368,8 @@ try:
                 print(f"Email: {email}")
                 print(f"DNI: {dni}")
                 print(f"Dirección: {direccion}")
-                print(f"Resumen (primeros 100 chars): {resumen.replace('\n', ' ')[:100]}")
+                resumen_preview = (resumen.replace('\n', ' ')[:100]) if resumen != "No encontrado" else "No encontrado"
+                print(f"Resumen (primeros 100 chars): {resumen_preview}")
                 print(f"Salario Deseado: {salario_deseado}")
                 print(f"Respuestas filtro: {respuestas_filtro_texto[:200]}...") # Imprimir solo una parte
 
