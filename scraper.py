@@ -104,16 +104,27 @@ else:
             options.binary_location = path
             break
     if not (hasattr(options, 'binary_location') and options.binary_location): # Comprobar si se estableció
-        print("⚠️ CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas.")
+        # Si CHROME_BIN no está seteado, intentar una ruta común de Linux si estamos en un entorno tipo Linux
+        # (esto es más para ejecuciones locales fuera de Docker, ya que Dockerfile lo setea)
+        if os.name == 'posix': # 'posix' para Linux/macOS
+            default_linux_chrome_path = "/usr/bin/google-chrome-stable"
+            if os.path.exists(default_linux_chrome_path):
+                options.binary_location = default_linux_chrome_path
+                print(f"ℹ️ CHROME_BIN no configurado, usando ruta por defecto de Linux: {default_linux_chrome_path}")
+            else:
+                print("⚠️ CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas (Windows/Linux).")
+        else:
+            print("⚠️ CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
 
 
 options.add_argument("--headless")
-# options.add_argument("--no-sandbox") # --no-sandbox es principalmente para Linux. Puede no ser necesario o causar problemas en Windows.
+options.add_argument("--no-sandbox") # Necesario para ejecutar como root en contenedores Docker Linux
+options.add_argument("--disable-dev-shm-usage") # Necesario para evitar problemas de recursos en Docker
 options.add_argument("--disable-gpu") # Recomendado para entornos headless/contenedores
 options.add_argument("--disable-extensions")
 # options.add_argument("--remote-debugging-port=9222") # Descomentar solo si se necesita para depuración
-options.add_argument("window-size=1920,1080")
-options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36") # User agent más específico
+options.add_argument("--window-size=1920,1080")
+options.add_argument("user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36") # User agent genérico para Linux
 
 # Usar webdriver-manager para gestionar ChromeDriver
 # Esto descargará automáticamente el chromedriver correcto si no está presente o si el del PATH no es compatible.
