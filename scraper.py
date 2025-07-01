@@ -232,7 +232,7 @@ try:
                     print(f"Error inesperado al obtener respuestas de filtro: {e}")
                     respuestas_filtro_texto = "Error"
 
-                direccion = safe_extract_text(driver, By.CSS_SELECTOR, "span.ml-20")
+                direccion = safe_extract_text(driver, By.CSS_SELECTOR, "span.js_CandidateAddress")
                 resumen = safe_extract_text(driver, By.CSS_SELECTOR, "div#Summary p.text-break-word")
                 salario_deseado = safe_extract_text(driver, By.CSS_SELECTOR, "div#Salary div.col-9 > div")
 
