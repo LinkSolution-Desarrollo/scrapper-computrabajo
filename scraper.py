@@ -354,6 +354,8 @@ try:
                 direccion_elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'icon-location')]/following-sibling::span")
                 direccion = direccion_elements[0].text.strip() if direccion_elements else safe_extract_text(driver, By.CSS_SELECTOR, "span.ml-20") # Fallback
 
+                direccion = safe_extract_text(driver, By.CSS_SELECTOR, "span.js_CandidateAddress")
+
                 resumen = safe_extract_text(driver, By.CSS_SELECTOR, "div#Summary p.text-break-word")
 
                 salario_deseado_elements = driver.find_elements(By.XPATH, "//div[span[contains(., 'Salario deseado') or contains(., 'Desired salary')]]/div[contains(@class, 'col-9')]/div")
