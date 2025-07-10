@@ -120,7 +120,7 @@ else:
             print(" CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
 
 
-# options.add_argument("--headless")
+options.add_argument("--headless")
 options.add_argument("--no-sandbox") # Necesario para ejecutar como root en contenedores Docker Linux
 options.add_argument("--disable-dev-shm-usage") # Necesario para evitar problemas de recursos en Docker
 options.add_argument("--disable-gpu") # Recomendado para entornos headless/contenedores
