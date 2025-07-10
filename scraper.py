@@ -3,7 +3,9 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import requests
 import re
 import os
@@ -246,22 +248,60 @@ try:
         # Limitar el número de candidatos a procesar si es necesario (ej. MAX_CANDIDATOS_POR_VACANTE)
         # total_a_procesar = min(100, total_candidatos_en_pagina)
         total_a_procesar = total_candidatos_en_pagina # Procesar todos los encontrados
+        print(f"Se procesarán {total_a_procesar} candidatos para esta vacante.")
 
         for i in range(total_a_procesar):
+            print(f"\nIteración {i + 1} del bucle de candidatos.")
             # Volver a encontrar los elementos para evitar StaleElementReferenceException
-            candidatos_actualizados = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
+            # y esperar a que estén presentes
+            try:
+                print(" Buscando lista actualizada de candidatos...")
+                wait = WebDriverWait(driver, 10)
+                candidatos_actualizados = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.match-link")))
+                print(f" Encontrados {len(candidatos_actualizados)} candidatos actualizados en la página.")
+            except TimeoutException:
+                print(" Timeout: No se encontraron enlaces de candidatos después de esperar. Terminando vacante.")
+                break
+            except Exception as e:
+                print(f" Error al buscar candidatos actualizados: {e}. Terminando vacante.")
+                break
+
             if i >= len(candidatos_actualizados):
-                print(f" No se pudo encontrar el candidato #{i+1}, posiblemente la página cambió.")
+                print(f" Índice {i} fuera de rango para candidatos_actualizados (longitud: {len(candidatos_actualizados)}). Algo salió mal. Terminando vacante.")
                 break
 
             try:
                 candidato_link_element = candidatos_actualizados[i]
+                
                 # Guardar el texto del link (nombre del candidato) antes de hacer clic
-                nombre_candidato_link = candidato_link_element.text.strip()
-                print(f"\nProcesando candidato {i + 1}/{total_a_procesar}: {nombre_candidato_link}")
+                # Es posible que el elemento no sea visible todavía, así que intentamos obtener el atributo si el texto falla.
+                try:
+                    nombre_candidato_link = candidato_link_element.text.strip()
+                    if not nombre_candidato_link: # Si el texto está vacío, intentar con 'data-username'
+                        nombre_candidato_link = candidato_link_element.get_attribute('data-username')
+                except Exception as e_text:
+                    nombre_candidato_link = f"Nombre no extraíble ({e_text})"
+                
+                print(f" Procesando candidato {i + 1}/{total_a_procesar}: '{nombre_candidato_link}' (Elemento #{i})")
 
-                candidato_link_element.click()
-                time.sleep(3) # Espera para que cargue el detalle del candidato
+                # Esperar a que el elemento sea clickeable
+                print(f" Esperando a que el candidato '{nombre_candidato_link}' sea clickeable...")
+                candidato_clickable = wait.until(EC.element_to_be_clickable(candidatos_actualizados[i]))
+                print(f" Haciendo clic en candidato: {nombre_candidato_link}")
+                # Usar JavaScript para hacer clic si el clic normal falla a veces
+                driver.execute_script("arguments[0].click();", candidato_clickable)
+                # candidato_clickable.click() 
+                
+                # time.sleep(3) # Reemplazado por espera explícita si es necesario, o mantener si la página carga mucho JS
+                # Esperar a que algún elemento distintivo de la página de detalle del candidato aparezca
+                try:
+                    WebDriverWait(driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize")) # Selector del nombre del candidato en detalle
+                    )
+                    print(" Página de detalle del candidato cargada.")
+                except TimeoutException:
+                    print(" Timeout esperando que la página de detalle del candidato cargue. Continuando con la extracción...")
+
 
                 # Extracción de datos del candidato
                 nombre = safe_extract_text(driver, By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize")
@@ -361,6 +401,16 @@ try:
                 salario_deseado_elements = driver.find_elements(By.XPATH, "//div[span[contains(., 'Salario deseado') or contains(., 'Desired salary')]]/div[contains(@class, 'col-9')]/div")
                 salario_deseado = salario_deseado_elements[0].text.strip() if salario_deseado_elements else "No encontrado"
 
+                # Extracción de la fuente del candidato
+                xpath_fuente = "//img[contains(@src, '/images/publishers/icons/')]/following-sibling::span"
+                fuente_candidato = "Fuente no especificada" # Valor por defecto
+                try:
+                    fuente_element = driver.find_element(By.XPATH, xpath_fuente)
+                    fuente_candidato = fuente_element.text.strip() if fuente_element and fuente_element.text.strip() else "Fuente no especificada"
+                except NoSuchElementException:
+                    print(" No se encontró el elemento de la fuente del candidato usando XPath.")
+                except Exception as e_fuente:
+                    print(f" Error al extraer la fuente del candidato: {e_fuente}")
 
                 print("\n--- CANDIDATO DETALLE ---")
                 print(f"Vacante en página: {vacante_nombre_pagina}")
@@ -373,6 +423,7 @@ try:
                 resumen_preview = (resumen.replace('\n', ' ')[:100]) if resumen != "No encontrado" else "No encontrado"
                 print(f"Resumen (primeros 100 chars): {resumen_preview}")
                 print(f"Salario Deseado: {salario_deseado}")
+                print(f"Fuente del Candidato: {fuente_candidato}") # Imprimir la fuente extraída
                 print(f"Respuestas filtro: {respuestas_filtro_texto[:200]}...") # Imprimir solo una parte
 
                 data_candidato = {
@@ -387,7 +438,7 @@ try:
                     "resumen": resumen,
                     "salario_deseado": salario_deseado,
                     "respuestas_filtro": respuestas_filtro_texto,
-                    "source": "pandape" # Fuente del candidato (antes decía computrabajo)
+                    "source": fuente_candidato # Usar la fuente extraída dinámicamente
                 }
 
                 try:
@@ -397,27 +448,34 @@ try:
                 except Exception as e_http_cand:
                     print(f" Error HTTP al enviar candidato: {e_http_cand}")
 
-                # Volver a la lista de candidatos
-                driver.back()
-                time.sleep(3) # Espera para que cargue la lista de nuevo
+                # Volver a la lista de candidatos (página de la vacante)
+                print(f" Volviendo a la página de la vacante: {href}")
+                driver.get(href) # Usar href de la vacante actual en lugar de driver.back()
+                # Esperar a que la lista de candidatos (o un marcador de ella) vuelva a cargar
+                try:
+                    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.match-link")))
+                    print(" Página de la vacante (lista de candidatos) cargada después de volver.")
+                except TimeoutException:
+                    print(" Timeout: La lista de candidatos no pareció recargarse después de volver a la URL de la vacante. Puede haber problemas en la siguiente iteración.")
+                
+                # time.sleep(3) # Reemplazado por espera explícita
 
             except Exception as e_cand_loop:
-                print(f" Error procesando candidato #{i + 1} ({nombre_candidato_link if 'nombre_candidato_link' in locals() else 'Nombre desconocido'}): {e_cand_loop}")
-                print("Intentando volver a la lista de candidatos...")
+                nombre_ref = nombre_candidato_link if 'nombre_candidato_link' in locals() and nombre_candidato_link else 'Nombre desconocido'
+                print(f" Error procesando candidato #{i + 1} ('{nombre_ref}'): {e_cand_loop}")
+                print(f" URL actual al momento del error: {driver.current_url}")
+                print(" Intentando volver a la página de la vacante para continuar con el siguiente candidato...")
                 try:
-                    driver.back() # Intenta volver atrás en caso de error grave en el candidato
-                    time.sleep(3)
-                except Exception as e_back:
-                    print(f" No se pudo volver atrás, intentando recargar página de vacantes: {e_back}")
-                    # Es importante volver a la URL de la lista de candidatos de la vacante actual
-                    current_vac_url = driver.current_url # Podría ser la URL del candidato o la lista
-                    if "Candidate" in current_vac_url or "Match" in current_vac_url: # Si está en detalle de candidato
-                        driver.get(href) # 'href' es la URL de la vacante (lista de sus candidatos)
-                    else: # Ya está en la lista o en una URL inesperada, intentar recargar href
-                         driver.get(href)
-                    time.sleep(5)
+                    driver.get(href) # 'href' es la URL de la vacante (lista de sus candidatos)
+                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.match-link")))
+                    print(" Recuperado en la página de la vacante.")
+                except Exception as e_recovery:
+                    print(f" Falló el intento de recuperación volviendo a la URL de la vacante: {e_recovery}")
+                    print(f" Terminando el procesamiento de candidatos para esta vacante: {href}")
+                    break # Salir del bucle de candidatos para esta vacante
                 continue # Continuar con el siguiente candidato
 
+        print(f"--- Fin del procesamiento de candidatos para la vacante: {href} ---")
         print("-" * 60)
         # Volver a la lista de vacantes (ya se hace al inicio del loop de vacantes con driver.get(href))
         # No es necesario driver.back() aquí, el loop externo de vacantes se encarga con driver.get(href_vacante)
