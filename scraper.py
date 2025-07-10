@@ -120,7 +120,7 @@ else:
             print(" CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
 
 
-options.add_argument("--headless")
+# options.add_argument("--headless")
 options.add_argument("--no-sandbox") # Necesario para ejecutar como root en contenedores Docker Linux
 options.add_argument("--disable-dev-shm-usage") # Necesario para evitar problemas de recursos en Docker
 options.add_argument("--disable-gpu") # Recomendado para entornos headless/contenedores
@@ -284,13 +284,23 @@ try:
                 
                 print(f" Procesando candidato {i + 1}/{total_a_procesar}: '{nombre_candidato_link}' (Elemento #{i})")
 
+                # Hacer scroll para asegurar que el elemento esté en la vista
+                try:
+                    print(f" Haciendo scroll hacia el candidato: {nombre_candidato_link}")
+                    driver.execute_script("arguments[0].scrollIntoView(true);", candidato_link_element)
+                    time.sleep(0.5) # Pequeña pausa para que el scroll se complete
+                except Exception as e_scroll:
+                    print(f"  Advertencia: No se pudo hacer scroll hacia el elemento: {e_scroll}")
+
                 # Esperar a que el elemento sea clickeable
                 print(f" Esperando a que el candidato '{nombre_candidato_link}' sea clickeable...")
+                # Usar el elemento original de la lista `candidatos_actualizados[i]` para la espera y el clic
                 candidato_clickable = wait.until(EC.element_to_be_clickable(candidatos_actualizados[i]))
+                
                 print(f" Haciendo clic en candidato: {nombre_candidato_link}")
                 # Usar JavaScript para hacer clic si el clic normal falla a veces
                 driver.execute_script("arguments[0].click();", candidato_clickable)
-                # candidato_clickable.click() 
+                # candidato_clickable.click()
                 
                 # time.sleep(3) # Reemplazado por espera explícita si es necesario, o mantener si la página carga mucho JS
                 # Esperar a que algún elemento distintivo de la página de detalle del candidato aparezca
@@ -338,58 +348,121 @@ try:
 
 
                 respuestas_filtro_texto = "No disponibles"
+                wait_short = WebDriverWait(driver, 5) # Espera corta para elementos que deberían aparecer rápido
+                wait_long = WebDriverWait(driver, 10) # Espera más larga para contenido AJAX o modales
+
                 try:
-                    resultados_tab_elements = driver.find_elements(By.ID, "ResultsTabAjax")
-                    if not resultados_tab_elements: # Si no se encuentra por ID (a veces pasa con elementos AJAX)
-                        resultados_tab_elements = driver.find_elements(By.XPATH, "//a[contains(@href,'#ResultsTabAjax')]")
-
-
-                    if resultados_tab_elements:
-                        resultados_tab = resultados_tab_elements[0]
-                        # Hacer clic solo si no está activo
-                        parent_li = resultados_tab.find_element(By.XPATH, "./parent::li")
-                        if "active" not in parent_li.get_attribute("class"):
-                            driver.execute_script("arguments[0].click();", resultados_tab)
-                            time.sleep(2) # Espera a que cargue el contenido AJAX
-
-                        ver_respuestas_links = driver.find_elements(By.CSS_SELECTOR, "a.js_lnkQuestionnaireWeightedDetail")
-                        if ver_respuestas_links:
-                            driver.execute_script("arguments[0].click();", ver_respuestas_links[0])
-                            time.sleep(2) # Esperar modal
-
-                            modal_content = driver.find_element(By.ID, "divResult") # Contenedor del modal
-                            preguntas_respuestas_items = modal_content.find_elements(By.CSS_SELECTOR, "ol.pl-50 > li")
-
-                            respuestas_list = []
-                            for item_idx, item in enumerate(preguntas_respuestas_items):
-                                try:
-                                    pregunta = item.find_element(By.XPATH, "./span").text.strip()
-                                    respuesta_elements = item.find_elements(By.XPATH, "./div/span")
-                                    respuesta = respuesta_elements[0].text.strip() if respuesta_elements else "Respuesta no visible"
-                                    respuestas_list.append(f"{pregunta}: {respuesta}")
-                                except Exception as e_qa:
-                                    print(f"Error extrayendo pregunta/respuesta #{item_idx}: {e_qa}")
-                                    respuestas_list.append("Error al extraer Q&A")
-
-                            respuestas_filtro_texto = " | ".join(respuestas_list)
-
-                            # Cerrar modal
-                            try:
-                                close_button = modal_content.find_element(By.CSS_SELECTOR, "button.close")
-                                driver.execute_script("arguments[0].click();", close_button)
-                                time.sleep(1)
-                            except Exception as e_close_modal:
-                                print(f" No se pudo cerrar el modal de respuestas: {e_close_modal}")
-                        else:
-                            print(" No se encontró el enlace 'Ver respuestas del cuestionario'.")
+                    print(" Buscando la pestaña 'Resultados'...")
+                    # Intentar localizar la pestaña "Resultados"
+                    # Primero por ID, que es más específico
+                    resultados_tab_xpath = "//a[@id='ResultsTabAjax' or contains(@href,'#ResultsTabAjax')]" # Combina ID y href
+                    
+                    resultados_tab_clickable = wait_long.until(EC.element_to_be_clickable((By.XPATH, resultados_tab_xpath)))
+                    
+                    # Verificar si la pestaña ya está activa directamente en el enlace <a>
+                    # El XPath resultados_tab_xpath ya apunta al elemento <a>
+                    is_active = "active" in resultados_tab_clickable.get_attribute("class")
+                    
+                    if not is_active:
+                        print(" La pestaña 'Resultados' no está activa. Haciendo clic...")
+                        driver.execute_script("arguments[0].click();", resultados_tab_clickable)
+                        # Esperar a que la pestaña se marque como activa, verificando la clase en el mismo elemento <a>
+                        WebDriverWait(driver, 10).until( # Aumentar ligeramente la espera aquí por si la actualización de clase tarda
+                            # Re-localizar el elemento dentro de la lambda para obtener su estado más actual
+                            lambda d: "active" in d.find_element(By.XPATH, resultados_tab_xpath).get_attribute("class")
+                        )
+                        print(" Pestaña 'Resultados' activada.")
                     else:
-                        print(" No se encontró la pestaña de Resultados (ResultsTabAjax).")
+                        print(" Pestaña 'Resultados' ya está activa.")
 
-                except NoSuchElementException:
-                    print(" Pestaña de resultados o enlace de cuestionario no encontrado (NoSuchElement).")
+                    # Buscar el enlace para "Ver respuestas del cuestionario"
+                    print(" Buscando enlace 'Ver respuestas del cuestionario' (a.js_lnkQuestionnaireWeightedDetail)...")
+                    ver_respuestas_link_element = wait_long.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.js_lnkQuestionnaireWeightedDetail")))
+                    print(" Enlace 'Ver respuestas del cuestionario' encontrado y clickeable. Haciendo clic...")
+                    driver.execute_script("arguments[0].click();", ver_respuestas_link_element)
+
+                    # Esperar a que el modal (divResult) sea visible
+                    print(" Esperando a que el modal de resultados (divResult) sea visible...")
+                    modal_content = wait_long.until(EC.visibility_of_element_located((By.ID, "divResult")))
+                    print(" Modal de resultados (divResult) visible.")
+
+                    # Esperar a que los items de preguntas/respuestas estén presentes dentro del modal
+                    print(" Buscando items de preguntas/respuestas (ol.pl-50 > li) dentro del modal...")
+                    # Usamos presence_of_all_elements_located para obtener una lista
+                    preguntas_respuestas_items = wait_long.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "#divResult ol.pl-50 > li")))
+                    print(f" Encontrados {len(preguntas_respuestas_items)} items de preguntas/respuestas.")
+
+                    if preguntas_respuestas_items:
+                        respuestas_list = []
+                        for item_idx, item in enumerate(preguntas_respuestas_items):
+                            try:
+                                pregunta = item.find_element(By.XPATH, "./span").text.strip()
+                                # La respuesta está en un span dentro de un div que es hijo del li
+                                respuesta_elements = item.find_elements(By.XPATH, "./div/span")
+                                respuesta = respuesta_elements[0].text.strip() if respuesta_elements and respuesta_elements[0].text.strip() else "Respuesta no proporcionada"
+                                respuestas_list.append(f"{pregunta}: {respuesta}")
+                            except TimeoutException:
+                                print(f"  Timeout extrayendo pregunta o respuesta para el item #{item_idx}.")
+                                respuestas_list.append("Error al extraer Q&A individual (Timeout)")
+                            except Exception as e_qa:
+                                print(f"  Error extrayendo pregunta/respuesta #{item_idx}: {e_qa}")
+                                respuestas_list.append("Error al extraer Q&A individual")
+                        
+                        if respuestas_list:
+                            respuestas_filtro_texto = " | ".join(respuestas_list)
+                        else:
+                            respuestas_filtro_texto = "No se pudieron extraer preguntas/respuestas individuales."
+                    else:
+                        respuestas_filtro_texto = "No se encontraron items de preguntas/respuestas en el modal."
+
+
+                    # Cerrar modal
+                    try:
+                        print(" Intentando cerrar el modal de resultados...")
+                        # Esperar a que el botón de cierre sea clickeable
+                        close_button = wait_long.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#divResult button.close")))
+                        driver.execute_script("arguments[0].click();", close_button)
+                        # Esperar a que el modal desaparezca (opcional pero bueno para la estabilidad)
+                        wait_long.until(EC.invisibility_of_element_located((By.ID, "divResult")))
+                        print(" Modal de resultados cerrado.")
+                    except TimeoutException:
+                        print(" Timeout esperando que el botón de cierre del modal sea clickeable o que el modal desaparezca.")
+                    except Exception as e_close_modal:
+                        print(f" No se pudo cerrar el modal de respuestas de forma controlada: {e_close_modal}")
+
+                except TimeoutException as e_timeout:
+                    print(f" Timeout general durante la extracción de respuestas de filtro: {e_timeout}")
+                    current_url_on_error = driver.current_url
+                    page_title_on_error = driver.title
+                    print(f" URL actual: {current_url_on_error}, Título: {page_title_on_error}")
+                    if "divResult" in str(e_timeout).lower():
+                         respuestas_filtro_texto = "Error: Timeout esperando el modal de resultados."
+                    elif "js_lnkQuestionnaireWeightedDetail" in str(e_timeout).lower():
+                         respuestas_filtro_texto = "Error: Timeout esperando el enlace para ver respuestas."
+                    elif "ResultsTabAjax" in str(e_timeout).lower():
+                         respuestas_filtro_texto = "Error: Timeout esperando la pestaña de resultados."
+                    else:
+                         respuestas_filtro_texto = "Error: Timeout no especificado en la extracción de filtros."
+                    print(f"Debug Info: TimeoutException - {str(e_timeout)}")
+
+
+                except NoSuchElementException as e_no_such:
+                    # Imprimir el mensaje de error completo de Selenium
+                    full_error_message = f"NoSuchElementException capturada. Mensaje original de Selenium: {str(e_no_such)}"
+                    print(full_error_message)
+                    
+                    # Guardar un mensaje de error más informativo que incluya parte del error original
+                    # para el campo respuestas_filtro_texto.
+                    # Tomar los primeros N caracteres del mensaje de error para no hacerlo demasiado largo.
+                    detalle_error_selenium = str(e_no_such).splitlines()[0] if str(e_no_such).splitlines() else str(e_no_such) # A menudo la primera línea es la más útil
+                    respuestas_filtro_texto = f"Error (NoSuchElement): {detalle_error_selenium[:150]}" # Primeros 150 chars del detalle
+                    
+                    print(f"Debug Info: Asignado '{respuestas_filtro_texto}' debido a NoSuchElementException.")
+
                 except Exception as e_filtro:
-                    print(f" Error al obtener respuestas de filtro: {e_filtro}")
-                    respuestas_filtro_texto = "Error al extraer"
+                    print(f" Error general (Exception) al obtener respuestas de filtro: {type(e_filtro).__name__} - {e_filtro}")
+                    respuestas_filtro_texto = f"Error general al extraer respuestas de filtro ({type(e_filtro).__name__})."
+                    print(f"Debug Info: Exception type: {type(e_filtro).__name__} - {str(e_filtro)}")
 
                 direccion_elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'icon-location')]/following-sibling::span")
                 direccion = direccion_elements[0].text.strip() if direccion_elements else safe_extract_text(driver, By.CSS_SELECTOR, "span.ml-20") # Fallback
