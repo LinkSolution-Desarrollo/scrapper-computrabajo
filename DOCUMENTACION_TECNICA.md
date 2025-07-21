@@ -2,45 +2,9 @@
 
 Este documento proporciona un análisis técnico detallado del scraper diseñado para extraer datos de la plataforma `ats.pandape.com`.
 
-## 1. Descripción General y Diagrama de Flujo
+## 1. Descripción General
 
 El proyecto consiste en un script de Python que automatiza la navegación y extracción de datos de vacantes y candidatos desde Pandape. Utiliza Selenium para el control del navegador, Boto3 para la integración con almacenamiento S3 (MinIO) y Requests para enviar datos a webhooks.
-
-### Diagrama de Flujo
-
-El siguiente diagrama ilustra el flujo lógico completo del scraper:
-
-```mermaid
-graph TD
-    A[Inicio] --> B{Cargar variables de entorno};
-    B --> C[Configurar opciones de Chrome];
-    C --> D[Iniciar Selenium WebDriver];
-    D --> E[Navegar a la página de inicio de sesión de Pandape];
-    E --> F[Ingresar credenciales y hacer clic en Login];
-    F --> G{¿Login exitoso?};
-    G -- Sí --> H[Obtener lista de enlaces de vacantes];
-    G -- No --> Z[Fin con Error de Login];
-    H --> I{Loop: Por cada vacante};
-    I -- Siguiente Vacante --> J[Navegar a la URL de la vacante];
-    J --> K[Extraer datos de la vacante (título, descripción)];
-    K --> L[Enviar datos de la vacante a Webhook];
-    L --> M[Obtener lista de candidatos para la vacante];
-    M --> N{Loop: Por cada candidato};
-    N -- Siguiente Candidato --> O[Navegar a la página de detalle del candidato];
-    O --> P[Extraer datos básicos del candidato (nombre, email, DNI)];
-    P --> Q{¿CV disponible?};
-    Q -- Sí --> R[Descargar CV];
-    R --> S[Subir CV a MinIO];
-    S --> T[Extraer respuestas del cuestionario];
-    Q -- No --> T;
-    T --> U[Enviar datos del candidato a Webhook];
-    U --> V[Volver a la lista de candidatos];
-    V --> N;
-    N -- Fin de Candidatos --> W[Volver a la lista de vacantes];
-    W --> I;
-    I -- Fin de Vacantes --> X[Cerrar WebDriver];
-    X --> Y[Fin];
-```
 
 ## 2. Estructura del Proyecto
 
