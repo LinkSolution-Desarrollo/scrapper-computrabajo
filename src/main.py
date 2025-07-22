@@ -16,17 +16,8 @@ import boto3
 from urllib.parse import urlparse
 from boto3.session import Config
 
-def safe_extract_text(driver, by, value, default="No encontrado"):
-    try:
-        return driver.find_element(by, value).text.strip()
-    except Exception:
-        return default
-
-def safe_extract_attribute(driver, by, value, attribute, default="No encontrado"):
-    try:
-        return driver.find_element(by, value).get_attribute(attribute)
-    except Exception:
-        return default
+from src.scraper import safe_extract_text, safe_extract_attribute, scrape_vacante, scrape_candidato
+from src.api_client import send_vacante, send_candidato
 
 def download_file(driver, url, local_folder="downloads"): # Pasamos driver como argumento
     os.makedirs(local_folder, exist_ok=True)
@@ -60,38 +51,13 @@ def download_file(driver, url, local_folder="downloads"): # Pasamos driver como 
 # Sin embargo, es mejor práctica pasarlo como argumento. Modifiqué download_file para aceptarlo.
 driver = None
 
-def upload_to_s3(local_path, nombre="sin_nombre", dni="sin_dni"):
-    try:
-        s3 = boto3.client(
-            's3',
-            endpoint_url=os.getenv("MINIO_ENDPOINT"),
-            aws_access_key_id=os.getenv("MINIO_ACCESS_KEY"),
-            aws_secret_access_key=os.getenv("MINIO_SECRET_KEY"),
-            region_name='us-east-1', # Ajusta según tu región de MinIO si es diferente
-            config=Config(signature_version='s3v4', s3={'addressing_style': 'path'})
-        )
+from src.s3_handler import upload_to_s3
 
-        bucket = os.getenv("MINIO_BUCKET")
-        extension = os.path.splitext(local_path)[1] or ".pdf"
-        # Asegurarse que DNI no tenga caracteres inválidos para nombres de archivo S3 si es necesario
-        # Por ahora, asumimos que el DNI es un identificador simple.
-        filename = f"{dni.replace('.', '').replace(' ', '_')}{extension}" # Limpieza básica del DNI para nombre de archivo
-
-        with open(local_path, "rb") as f:
-            s3.upload_fileobj(f, bucket, filename)
-
-        print(f" Subido a MinIO: {filename}")
-    except Exception as e:
-        print(f" Error al subir a MinIO: {e}")
-
-# Cargar variables del entorno
-load_dotenv()
-usuario = os.environ.get("USUARIO")
-clave = os.environ.get("CLAVE")
+from src import config
 
 # Configuración de Chrome
 options = Options()
-chrome_bin_path = os.getenv("CHROME_BIN")
+chrome_bin_path = config.CHROME_BIN
 if chrome_bin_path:
     options.binary_location = chrome_bin_path
 else:
@@ -165,8 +131,8 @@ try:
     driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=0&RecruitmentType=0")
     time.sleep(5)
 
-    driver.find_element(By.ID, "Username").send_keys(usuario)
-    driver.find_element(By.ID, "Password").send_keys(clave)
+    driver.find_element(By.ID, "Username").send_keys(config.USUARIO)
+    driver.find_element(By.ID, "Password").send_keys(config.CLAVE)
     driver.find_element(By.ID, "btLogin").click()
     time.sleep(10) # Espera para login y redirección
 
@@ -195,39 +161,15 @@ try:
             driver.switch_to.window(driver.window_handles[1]) # Cambiar a la nueva pestaña
             time.sleep(3) # Espera para que cargue la vista previa
 
-            titulo = safe_extract_text(driver, By.CSS_SELECTOR, "h1.fw-600.color-title")
-            # Ajustar selectores si la estructura de la vista previa es diferente
-            descripcion_elements = driver.find_elements(By.CSS_SELECTOR, "div.order-1 > div.mb-20")
-            descripcion = "\n".join([elem.text for elem in descripcion_elements if elem.text.strip()]) if descripcion_elements else "No encontrado"
-
-            requisitos_div = driver.find_elements(By.XPATH, "//h3[contains(text(), 'Requisitos')]/following-sibling::div[1]")
-            requisitos = requisitos_div[0].text.strip() if requisitos_div else safe_extract_text(driver, By.CSS_SELECTOR, "div#Requirements") # Fallback
-
-            valorado_div = driver.find_elements(By.XPATH, "//h3[contains(text(), 'Valorado')]/following-sibling::div[1]")
-            valorado = valorado_div[0].text.strip() if valorado_div else safe_extract_text(driver, By.CSS_SELECTOR, "div#Valued") # Fallback
-
-
+            data_vacante = scrape_vacante(driver)
             print("\n--- VACANTE ---")
-            print(f"Título: {titulo}")
-            requisitos_preview = (requisitos.replace('\n', ' ')[:100]) if requisitos != "No encontrado" else "No encontrado"
-            valorado_preview = (valorado.replace('\n', ' ')[:100]) if valorado != "No encontrado" else "No encontrado"
+            print(f"Título: {data_vacante['titulo']}")
+            requisitos_preview = (data_vacante['requisitos'].replace('\n', ' ')[:100]) if data_vacante['requisitos'] != "No encontrado" else "No encontrado"
+            valorado_preview = (data_vacante['valorado'].replace('\n', ' ')[:100]) if data_vacante['valorado'] != "No encontrado" else "No encontrado"
             print(f"Requisitos (primeros 100 chars): {requisitos_preview}")
             print(f"Valorado (primeros 100 chars): {valorado_preview}")
 
-            data_vacante = {
-                "titulo": titulo,
-                "descripcion": descripcion,
-                "requisitos": requisitos,
-                "valorado": valorado,
-                "source": "pandape" # Fuente de la vacante
-            }
-
-            try:
-                # Asegúrate que esta URL es accesible desde el contenedor
-                r = requests.post("http://10.20.62.94:5678/webhook/vacant", json=data_vacante, timeout=10)
-                print(f"API Vacante: {' Enviada' if r.status_code == 200 else f' Error {r.status_code}: {r.text}'}")
-            except Exception as e:
-                print(f" Error al enviar vacante a API: {e}")
+            send_vacante(data_vacante)
 
             driver.close() # Cerrar la pestaña de vista previa
             driver.switch_to.window(driver.window_handles[0]) # Volver a la pestaña principal
@@ -313,36 +255,13 @@ try:
                     print(" Timeout esperando que la página de detalle del candidato cargue. Continuando con la extracción...")
 
 
-                # Extracción de datos del candidato
-                nombre = safe_extract_text(driver, By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize")
-                numero = safe_extract_text(driver, By.CSS_SELECTOR, "a.js_WhatsappLink")
-                cv_url = safe_extract_attribute(driver, By.CSS_SELECTOR, "a[title$='.pdf']", "href") # Asumimos que siempre es .pdf
-                email = safe_extract_text(driver, By.CSS_SELECTOR, "a.text-nowrap.mb-05 span")
-
-                dni = "No encontrado"
-                try:
-                    # Buscar DNI de forma más robusta
-                    nationality_section_elements = driver.find_elements(By.XPATH, "//div[span[contains(., 'Nacionalidad') or contains(., 'Nationality')]]")
-                    if nationality_section_elements:
-                        nationality_section_text = nationality_section_elements[0].text
-                        # Patrones comunes para DNI en España (puede necesitar ajustes para otros formatos/países)
-                        dni_match = re.search(r"(D\.N\.I\.?|NIF|NIE)\s*[:\-]?\s*([A-Z0-9\-\.]{7,12})", nationality_section_text, re.IGNORECASE)
-                        if dni_match:
-                            dni = dni_match.group(2).strip().replace('.', '').replace('-', '')
-                        else: # Fallback si no encuentra DNI específico, buscar un número largo
-                            numbers_in_section = re.findall(r'\b\d{7,9}[A-Za-z]?\b', nationality_section_text)
-                            if numbers_in_section:
-                                dni = numbers_in_section[0]
-                except Exception as e_dni:
-                    print(f" No se pudo extraer DNI automáticamente: {e_dni}")
-                    pass
-
+                data_candidato = scrape_candidato(driver)
                 local_cv_path = None
-                if cv_url != "No encontrado":
-                    print(f" Intentando descargar CV desde: {cv_url}")
-                    local_cv_path = download_file(driver, cv_url) # Pasar driver a download_file
-                    if local_cv_path and os.getenv("MINIO_ENDPOINT"): # Solo subir si hay endpoint de MinIO
-                        upload_to_s3(local_cv_path, nombre=nombre, dni=dni if dni != "No encontrado" else f"sindni_{int(time.time())}")
+                if data_candidato['curriculum_url'] != "No encontrado":
+                    print(f" Intentando descargar CV desde: {data_candidato['curriculum_url']}")
+                    local_cv_path = download_file(driver, data_candidato['curriculum_url']) # Pasar driver a download_file
+                    if local_cv_path and config.MINIO_ENDPOINT: # Solo subir si hay endpoint de MinIO
+                        upload_to_s3(local_cv_path, nombre=data_candidato['nombre'], dni=data_candidato['dni'] if data_candidato['dni'] != "No encontrado" else f"sindni_{int(time.time())}")
                 else:
                     print(" CV no disponible para este candidato.")
 
@@ -487,39 +406,25 @@ try:
 
                 print("\n--- CANDIDATO DETALLE ---")
                 print(f"Vacante en página: {vacante_nombre_pagina}")
-                print(f"Nombre: {nombre}")
-                print(f"Teléfono: {numero}")
-                print(f"CV URL: {cv_url}")
-                print(f"Email: {email}")
-                print(f"DNI: {dni}")
-                print(f"Dirección: {direccion}")
-                resumen_preview = (resumen.replace('\n', ' ')[:100]) if resumen != "No encontrado" else "No encontrado"
+                print(f"Nombre: {data_candidato['nombre']}")
+                print(f"Teléfono: {data_candidato['numero']}")
+                print(f"CV URL: {data_candidato['curriculum_url']}")
+                print(f"Email: {data_candidato['email']}")
+                print(f"DNI: {data_candidato['dni']}")
+                print(f"Dirección: {data_candidato['direccion']}")
+                resumen_preview = (data_candidato['resumen'].replace('\n', ' ')[:100]) if data_candidato['resumen'] != "No encontrado" else "No encontrado"
                 print(f"Resumen (primeros 100 chars): {resumen_preview}")
-                print(f"Salario Deseado: {salario_deseado}")
-                print(f"Fuente del Candidato: {fuente_candidato}") # Imprimir la fuente extraída
+                print(f"Salario Deseado: {data_candidato['salario_deseado']}")
+                print(f"Fuente del Candidato: {data_candidato['source']}") # Imprimir la fuente extraída
                 print(f"Respuestas filtro: {respuestas_filtro_texto[:200]}...") # Imprimir solo una parte
 
-                data_candidato = {
-                    "vacante": vacante_nombre_pagina, # Usar el nombre de la vacante de la página de candidatos
-                    "nombre": nombre,
-                    "numero": numero,
-                    "curriculum_url": cv_url, # Enviar la URL del CV
+                data_candidato.update({
+                    "vacante": vacante_nombre_pagina,
                     "curriculum_descargado": os.path.basename(local_cv_path) if local_cv_path else "No descargado",
-                    "email": email,
-                    "dni": dni,
-                    "direccion": direccion,
-                    "resumen": resumen,
-                    "salario_deseado": salario_deseado,
                     "respuestas_filtro": respuestas_filtro_texto,
-                    "source": fuente_candidato # Usar la fuente extraída dinámicamente
-                }
+                })
 
-                try:
-                    # Asegúrate que esta URL es accesible desde el contenedor
-                    r_cand = requests.post("http://10.20.62.94:5678/webhook/insert", json=data_candidato, timeout=10)
-                    print(f"API Candidato: {' Enviado' if r_cand.status_code == 200 else f' Error {r_cand.status_code}: {r_cand.text}'}")
-                except Exception as e_http_cand:
-                    print(f" Error HTTP al enviar candidato: {e_http_cand}")
+                send_candidato(data_candidato)
 
                 # Volver a la lista de candidatos (página de la vacante)
                 print(f" Volviendo a la página de la vacante: {href}")

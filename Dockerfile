@@ -35,4 +35,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV CHROME_BIN=/usr/bin/google-chrome-stable
 
 # Comando por defecto para ejecutar el scraper
-CMD ["python", "scraper.py"]
+CMD ["python", "-m", "src.main"]
