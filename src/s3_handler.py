@@ -4,7 +4,7 @@ import os
 from src import config
 from boto3.session import Config
 
-def upload_to_s3(local_path, nombre="sin_nombre", dni="sin_dni"):
+def upload_to_s3(local_path,  dni="sin_dni"):
     try:
         s3 = boto3.client(
             's3',
