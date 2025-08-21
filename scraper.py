@@ -166,7 +166,7 @@ except Exception as e:
 driver = webdriver.Chrome(service=service, options=options)
 
 try:
-    driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=0&RecruitmentType=0")
+    driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=0&RecruitmentType=1")
     time.sleep(5)
 
     driver.find_element(By.ID, "Username").send_keys(usuario)
