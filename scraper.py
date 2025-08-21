@@ -60,29 +60,33 @@ def download_file(driver, url, local_folder="downloads"): # Pasamos driver como 
 # Sin embargo, es mejor práctica pasarlo como argumento. Modifiqué download_file para aceptarlo.
 driver = None
 
-def upload_to_s3(local_path, nombre="sin_nombre", dni="sin_dni"):
+def upload_to_s3(local_path, dni=None):
+    if not dni or dni == "No encontrado":
+        print(" ⚠️ CV sin DNI, no se sube a MinIO")
+        return
+
     try:
         s3 = boto3.client(
             's3',
             endpoint_url=os.getenv("MINIO_ENDPOINT"),
             aws_access_key_id=os.getenv("MINIO_ACCESS_KEY"),
             aws_secret_access_key=os.getenv("MINIO_SECRET_KEY"),
-            region_name='us-east-1', # Ajusta según tu región de MinIO si es diferente
+            region_name='us-east-1',
             config=Config(signature_version='s3v4', s3={'addressing_style': 'path'})
         )
 
         bucket = os.getenv("MINIO_BUCKET")
         extension = os.path.splitext(local_path)[1] or ".pdf"
-        # Asegurarse que DNI no tenga caracteres inválidos para nombres de archivo S3 si es necesario
-        # Por ahora, asumimos que el DNI es un identificador simple.
-        filename = f"{dni.replace('.', '').replace(' ', '_')}{extension}" # Limpieza básica del DNI para nombre de archivo
+
+        safe_dni = dni.replace('.', '').replace(' ', '_')
+        filename = f"{safe_dni}{extension}"
 
         with open(local_path, "rb") as f:
             s3.upload_fileobj(f, bucket, filename)
 
-        print(f" Subido a MinIO: {filename}")
+        print(f" ✅ Subido a MinIO: {filename}")
     except Exception as e:
-        print(f" Error al subir a MinIO: {e}")
+        print(f" ❌ Error al subir a MinIO: {e}")
 
 # Cargar variables del entorno
 load_dotenv()
@@ -120,12 +124,12 @@ else:
             print(" CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
 
 
-# options.add_argument("--headless")
+options.add_argument("--headless")
 options.add_argument("--no-sandbox") # Necesario para ejecutar como root en contenedores Docker Linux
 options.add_argument("--disable-dev-shm-usage") # Necesario para evitar problemas de recursos en Docker
 options.add_argument("--disable-gpu") # Recomendado para entornos headless/contenedores
 options.add_argument("--disable-extensions")
-# options.add_argument("--remote-debugging-port=9222") # Descomentar solo si se necesita para depuración
+#options.add_argument("--remote-debugging-port=9222") # Descomentar solo si se necesita para depuración
 options.add_argument("--window-size=1920,1080")
 options.add_argument("user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36") # User agent genérico para Linux
 
@@ -342,7 +346,8 @@ try:
                     print(f" Intentando descargar CV desde: {cv_url}")
                     local_cv_path = download_file(driver, cv_url) # Pasar driver a download_file
                     if local_cv_path and os.getenv("MINIO_ENDPOINT"): # Solo subir si hay endpoint de MinIO
-                        upload_to_s3(local_cv_path, nombre=nombre, dni=dni if dni != "No encontrado" else f"sindni_{int(time.time())}")
+                        upload_to_s3(local_cv_path, dni=dni)
+
                 else:
                     print(" CV no disponible para este candidato.")
 
