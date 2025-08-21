@@ -120,7 +120,7 @@ else:
             print(" CHROME_BIN no está configurado y no se encontró Chrome en rutas predeterminadas de Windows.")
 
 
-options.add_argument("--headless")
+# options.add_argument("--headless")
 options.add_argument("--no-sandbox") # Necesario para ejecutar como root en contenedores Docker Linux
 options.add_argument("--disable-dev-shm-usage") # Necesario para evitar problemas de recursos en Docker
 options.add_argument("--disable-gpu") # Recomendado para entornos headless/contenedores
@@ -224,7 +224,7 @@ try:
 
             try:
                 # Asegúrate que esta URL es accesible desde el contenedor
-                r = requests.post("http://10.20.62.94:5678/webhook/vacant", json=data_vacante, timeout=10)
+                r = requests.post("http://10.20.62.101:5678/webhook/vacant", json=data_vacante, timeout=10)
                 print(f"API Vacante: {' Enviada' if r.status_code == 200 else f' Error {r.status_code}: {r.text}'}")
             except Exception as e:
                 print(f" Error al enviar vacante a API: {e}")
@@ -516,7 +516,7 @@ try:
 
                 try:
                     # Asegúrate que esta URL es accesible desde el contenedor
-                    r_cand = requests.post("http://10.20.62.94:5678/webhook/insert", json=data_candidato, timeout=10)
+                    r_cand = requests.post("http://10.20.62.101:5678/webhook/insert", json=data_candidato, timeout=10)
                     print(f"API Candidato: {' Enviado' if r_cand.status_code == 200 else f' Error {r_cand.status_code}: {r_cand.text}'}")
                 except Exception as e_http_cand:
                     print(f" Error HTTP al enviar candidato: {e_http_cand}")
