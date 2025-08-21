@@ -166,7 +166,7 @@ except Exception as e:
 driver = webdriver.Chrome(service=service, options=options)
 
 try:
-    driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=0&RecruitmentType=1")
+    driver.get("https://ats.pandape.com/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=2&RecruitmentType=0")
     time.sleep(5)
 
     driver.find_element(By.ID, "Username").send_keys(usuario)
@@ -519,15 +519,12 @@ try:
                     "source": fuente_candidato # Usar la fuente extraída dinámicamente
                 }
 
-                if not data_candidato.get("dni") or data_candidato.get("dni") == "No encontrado":
-                    print("El DNI es obligatorio")
-                else:
-                    try:
-                        # Asegúrate que esta URL es accesible desde el contenedor
-                        r_cand = requests.post("http://10.20.62.101:5678/webhook/insert", json=data_candidato, timeout=10)
-                        print(f"API Candidato: {' Enviado' if r_cand.status_code == 200 else f' Error {r_cand.status_code}: {r_cand.text}'}")
-                    except Exception as e_http_cand:
-                        print(f" Error HTTP al enviar candidato: {e_http_cand}")
+                try:
+                    # Asegúrate que esta URL es accesible desde el contenedor
+                    r_cand = requests.post("http://10.20.62.101:5678/webhook/insert", json=data_candidato, timeout=10)
+                    print(f"API Candidato: {' Enviado' if r_cand.status_code == 200 else f' Error {r_cand.status_code}: {r_cand.text}'}")
+                except Exception as e_http_cand:
+                    print(f" Error HTTP al enviar candidato: {e_http_cand}")
 
                 # Volver a la lista de candidatos (página de la vacante)
                 print(f" Volviendo a la página de la vacante: {href}")
