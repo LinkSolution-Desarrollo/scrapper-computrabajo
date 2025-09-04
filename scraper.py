@@ -191,6 +191,8 @@ try:
         driver.get(href)
         time.sleep(3) # Espera para que cargue la página de la vacante
 
+        titulo_vacante_actual = "Título no extraído"  # Inicializar variable para el título
+
         # ---------- DATOS DE LA VACANTE DESDE VISTA PREVIA ----------
         try:
             preview_btn = driver.find_element(By.CSS_SELECTOR, "a[title='Vista previa']")
@@ -200,6 +202,7 @@ try:
             time.sleep(3) # Espera para que cargue la vista previa
 
             titulo = safe_extract_text(driver, By.CSS_SELECTOR, "h1.fw-600.color-title")
+            titulo_vacante_actual = titulo
             # Ajustar selectores si la estructura de la vista previa es diferente
             descripcion_elements = driver.find_elements(By.CSS_SELECTOR, "div.order-1 > div.mb-20")
             descripcion = "\n".join([elem.text for elem in descripcion_elements if elem.text.strip()]) if descripcion_elements else "No encontrado"
@@ -244,10 +247,9 @@ try:
 
 
         # ---------- CANDIDATOS ----------
-        vacante_nombre_pagina = safe_extract_text(driver, By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140") # Nombre de la vacante en la página de candidatos
         candidatos_links = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
         total_candidatos_en_pagina = len(candidatos_links)
-        print(f" Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{vacante_nombre_pagina}'.")
+        print(f" Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{titulo_vacante_actual}'.")
 
         # Limitar el número de candidatos a procesar si es necesario (ej. MAX_CANDIDATOS_POR_VACANTE)
         # total_a_procesar = min(100, total_candidatos_en_pagina)
@@ -491,7 +493,7 @@ try:
                     print(f" Error al extraer la fuente del candidato: {e_fuente}")
 
                 print("\n--- CANDIDATO DETALLE ---")
-                print(f"Vacante en página: {vacante_nombre_pagina}")
+                print(f"Vacante en página: {titulo_vacante_actual}")
                 print(f"Nombre: {nombre}")
                 print(f"Teléfono: {numero}")
                 print(f"CV URL: {cv_url}")
@@ -505,7 +507,7 @@ try:
                 print(f"Respuestas filtro: {respuestas_filtro_texto[:200]}...") # Imprimir solo una parte
 
                 data_candidato = {
-                    "vacante": vacante_nombre_pagina, # Usar el nombre de la vacante de la página de candidatos
+                    "vacante": titulo_vacante_actual, # Usar el nombre de la vacante de la página de candidatos
                     "nombre": nombre,
                     "numero": numero,
                     "curriculum_url": cv_url, # Enviar la URL del CV
