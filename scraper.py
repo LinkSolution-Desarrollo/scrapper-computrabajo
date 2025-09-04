@@ -191,6 +191,8 @@ try:
         driver.get(href)
         time.sleep(3) # Espera para que cargue la página de la vacante
 
+        titulo_vacante_actual = "No encontrado"  # Inicializar variable para el título
+
         # ---------- DATOS DE LA VACANTE DESDE VISTA PREVIA ----------
         try:
             preview_btn = driver.find_element(By.CSS_SELECTOR, "a[title='Vista previa']")
@@ -199,7 +201,21 @@ try:
             driver.switch_to.window(driver.window_handles[1]) # Cambiar a la nueva pestaña
             time.sleep(3) # Espera para que cargue la vista previa
 
-            titulo = safe_extract_text(driver, By.CSS_SELECTOR, "h1.fw-600.color-title")
+            # Extracción robusta del título
+            titulo = "No encontrado" # Valor por defecto
+            try:
+                wait_preview = WebDriverWait(driver, 10)
+                title_selector = (By.CSS_SELECTOR, "h1.fw-600.color-title")
+                title_element = wait_preview.until(EC.presence_of_element_located(title_selector))
+                titulo = title_element.text.strip() if title_element.text.strip() else "Título vacío"
+            except TimeoutException:
+                print(" ❌ Error: Timeout esperando el título de la vacante en la vista previa.")
+                titulo = "No encontrado (Timeout)"
+            except Exception as e:
+                print(f" ❌ Error inesperado al extraer el título de la vacante: {e}")
+                titulo = "No encontrado (Error)"
+
+            titulo_vacante_actual = titulo
             # Ajustar selectores si la estructura de la vista previa es diferente
             descripcion_elements = driver.find_elements(By.CSS_SELECTOR, "div.order-1 > div.mb-20")
             descripcion = "\n".join([elem.text for elem in descripcion_elements if elem.text.strip()]) if descripcion_elements else "No encontrado"
@@ -236,18 +252,32 @@ try:
             driver.close() # Cerrar la pestaña de vista previa
             driver.switch_to.window(driver.window_handles[0]) # Volver a la pestaña principal
         except Exception as e:
-            print(f" No se pudo procesar la vista previa de la vacante: {e}")
+            print(f" ⚠️ No se pudo procesar la vista previa de la vacante: {e}. Intentando fallback.")
             # Si la vista previa falla, asegurarse de estar en la ventana correcta si se abrió una nueva
             if len(driver.window_handles) > 1:
                 driver.close()
                 driver.switch_to.window(driver.window_handles[0])
 
+            # FALLBACK: Intentar extraer el título desde la página de candidatos
+            try:
+                print(" ℹ️ Intentando extraer título desde la página de candidatos (fallback)...")
+                wait_fallback = WebDriverWait(driver, 5) # Short wait
+                fallback_selector = (By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140")
+                fallback_element = wait_fallback.until(EC.presence_of_element_located(fallback_selector))
+                titulo_fallback = fallback_element.text.strip()
+                if titulo_fallback:
+                    titulo_vacante_actual = titulo_fallback
+                    print(f" ✅ Título encontrado con fallback: {titulo_vacante_actual}")
+                else:
+                    print(" ❌ El título de fallback estaba vacío.")
+            except Exception as e_fallback:
+                print(f" ❌ Fallback para obtener el título también falló: {e_fallback}")
+
 
         # ---------- CANDIDATOS ----------
-        vacante_nombre_pagina = safe_extract_text(driver, By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140") # Nombre de la vacante en la página de candidatos
         candidatos_links = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
         total_candidatos_en_pagina = len(candidatos_links)
-        print(f" Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{vacante_nombre_pagina}'.")
+        print(f" Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{titulo_vacante_actual}'.")
 
         # Limitar el número de candidatos a procesar si es necesario (ej. MAX_CANDIDATOS_POR_VACANTE)
         # total_a_procesar = min(100, total_candidatos_en_pagina)
@@ -491,7 +521,7 @@ try:
                     print(f" Error al extraer la fuente del candidato: {e_fuente}")
 
                 print("\n--- CANDIDATO DETALLE ---")
-                print(f"Vacante en página: {vacante_nombre_pagina}")
+                print(f"Vacante en página: {titulo_vacante_actual}")
                 print(f"Nombre: {nombre}")
                 print(f"Teléfono: {numero}")
                 print(f"CV URL: {cv_url}")
@@ -505,7 +535,7 @@ try:
                 print(f"Respuestas filtro: {respuestas_filtro_texto[:200]}...") # Imprimir solo una parte
 
                 data_candidato = {
-                    "vacante": vacante_nombre_pagina, # Usar el nombre de la vacante de la página de candidatos
+                    "vacante": titulo_vacante_actual, # Usar el nombre de la vacante de la página de candidatos
                     "nombre": nombre,
                     "numero": numero,
                     "curriculum_url": cv_url, # Enviar la URL del CV
