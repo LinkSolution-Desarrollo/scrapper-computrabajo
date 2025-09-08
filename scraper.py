@@ -193,46 +193,36 @@ try:
 
         titulo_vacante_actual = "No encontrado"  # Inicializar variable para el título
 
-        # ---------- DATOS DE LA VACANTE DESDE VISTA PREVIA ----------
+        # ---------- DATOS DE LA VACANTE DESDE EDITAR VACANTE ----------
         try:
-            preview_btn = driver.find_element(By.CSS_SELECTOR, "a[title='Vista previa']")
-            preview_href = preview_btn.get_attribute("href")
-            driver.execute_script("window.open(arguments[0]);", preview_href)
-            driver.switch_to.window(driver.window_handles[1]) # Cambiar a la nueva pestaña
-            time.sleep(3) # Espera para que cargue la vista previa
+            # Hacer clic en el botón de editar vacante
+            edit_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='btnEditVacancy']")))
+            edit_btn.click()
 
-            # Extracción robusta del título
-            titulo = "No encontrado" # Valor por defecto
-            try:
-                wait_preview = WebDriverWait(driver, 10)
-                title_selector = (By.CSS_SELECTOR, "h1.fw-600.color-title")
-                title_element = wait_preview.until(EC.presence_of_element_located(title_selector))
-                titulo = title_element.text.strip() if title_element.text.strip() else "Título vacío"
-            except TimeoutException:
-                print(" ❌ Error: Timeout esperando el título de la vacante en la vista previa.")
-                titulo = "No encontrado (Timeout)"
-            except Exception as e:
-                print(f" ❌ Error inesperado al extraer el título de la vacante: {e}")
-                titulo = "No encontrado (Error)"
+            # Esperar a que la página de edición cargue, buscando el input del título
+            wait_edit = WebDriverWait(driver, 10)
+            job_input_element = wait_edit.until(EC.presence_of_element_located((By.XPATH, "//*[@id='Job']")))
+
+            # Extraer título y complemento
+            titulo_base = job_input_element.get_attribute('value').strip()
+            complemento = driver.find_element(By.XPATH, "//*[@id='JobComplement']").get_attribute('value').strip()
+
+            if titulo_base and complemento:
+                titulo = f"{titulo_base} - {complemento}"
+            elif titulo_base:
+                titulo = titulo_base
+            else:
+                titulo = "No encontrado"
 
             titulo_vacante_actual = titulo
-            # Ajustar selectores si la estructura de la vista previa es diferente
-            descripcion_elements = driver.find_elements(By.CSS_SELECTOR, "div.order-1 > div.mb-20")
-            descripcion = "\n".join([elem.text for elem in descripcion_elements if elem.text.strip()]) if descripcion_elements else "No encontrado"
 
-            requisitos_div = driver.find_elements(By.XPATH, "//h3[contains(text(), 'Requisitos')]/following-sibling::div[1]")
-            requisitos = requisitos_div[0].text.strip() if requisitos_div else safe_extract_text(driver, By.CSS_SELECTOR, "div#Requirements") # Fallback
-
-            valorado_div = driver.find_elements(By.XPATH, "//h3[contains(text(), 'Valorado')]/following-sibling::div[1]")
-            valorado = valorado_div[0].text.strip() if valorado_div else safe_extract_text(driver, By.CSS_SELECTOR, "div#Valued") # Fallback
-
+            # Los otros campos no se extraen desde esta vista según el requerimiento.
+            descripcion = "No encontrado"
+            requisitos = "No encontrado"
+            valorado = "No encontrado"
 
             print("\n--- VACANTE ---")
             print(f"Título: {titulo}")
-            requisitos_preview = (requisitos.replace('\n', ' ')[:100]) if requisitos != "No encontrado" else "No encontrado"
-            valorado_preview = (valorado.replace('\n', ' ')[:100]) if valorado != "No encontrado" else "No encontrado"
-            print(f"Requisitos (primeros 100 chars): {requisitos_preview}")
-            print(f"Valorado (primeros 100 chars): {valorado_preview}")
 
             data_vacante = {
                 "titulo": titulo,
@@ -243,21 +233,19 @@ try:
             }
 
             try:
-                # Asegúrate que esta URL es accesible desde el contenedor
-                r = requests.post("http://10.20.62.101:5678/webhook/vacant", json=data_vacante, timeout=10)
-                print(f"API Vacante: {' Enviada' if r.status_code == 200 else f' Error {r.status_code}: {r.text}'}")
+                # Enviar a nuevo webhook
+                r = requests.post("http://10.20.62.101:5678/webhook/editar_vacante", json=data_vacante, timeout=10)
+                print(f"API Editar Vacante: {' Enviada' if r.status_code == 200 else f' Error {r.status_code}: {r.text}'}")
             except Exception as e:
                 print(f" Error al enviar vacante a API: {e}")
 
-            driver.close() # Cerrar la pestaña de vista previa
-            driver.switch_to.window(driver.window_handles[0]) # Volver a la pestaña principal
-        except Exception as e:
-            print(f" ⚠️ No se pudo procesar la vista previa de la vacante: {e}. Intentando fallback.")
-            # Si la vista previa falla, asegurarse de estar en la ventana correcta si se abrió una nueva
-            if len(driver.window_handles) > 1:
-                driver.close()
-                driver.switch_to.window(driver.window_handles[0])
+            # Volver a la página de la vacante para procesar candidatos
+            print(f" Volviendo a la lista de candidatos para la vacante: {href}")
+            driver.get(href)
+            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.match-link")))
 
+        except Exception as e:
+            print(f" ⚠️ No se pudo procesar la edición de la vacante: {e}.")
             # FALLBACK: Intentar extraer el título desde la página de candidatos
             try:
                 print(" ℹ️ Intentando extraer título desde la página de candidatos (fallback)...")
