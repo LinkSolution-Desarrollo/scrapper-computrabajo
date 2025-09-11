@@ -262,31 +262,54 @@ try:
                 print(f" ❌ Fallback para obtener el título también falló: {e_fallback}")
 
 
-        # ---------- CANDIDATOS (CON SCROLL PARA CARGA COMPLETA) ----------
-        # Se implementa un bucle de scroll para asegurar que todos los candidatos que se cargan de forma
-        # perezosa (lazy-loading) estén presentes en el DOM antes de empezar a procesarlos.
-        print(" Iniciando scroll para cargar todos los candidatos...")
-        last_count = 0
+        # ---------- CANDIDATOS (CON SCROLL INTELIGENTE) ----------
+        # Bucle de scroll mejorado: extrae el número total de candidatos y hace scroll
+        # hasta que ese número se alcanza, con mecanismos de seguridad.
+        print(" Iniciando scroll inteligente para cargar todos los candidatos...")
+
+        total_candidatos_esperados = 0
+        try:
+            # El selector apunta a la pestaña que contiene el texto "Inscriptos (X)"
+            # Se usa un selector XPath más específico para encontrar el span por su texto.
+            inscriptos_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//span[contains(text(), 'Inscriptos')]"))
+            )
+            inscriptos_texto = inscriptos_element.text
+            match = re.search(r'\((\d+)\)', inscriptos_texto)
+            if match:
+                total_candidatos_esperados = int(match.group(1))
+                print(f" Total de candidatos esperados según la página: {total_candidatos_esperados}")
+            else:
+                print(" No se pudo extraer el número de la pestaña 'Inscriptos'. Se usará el método de scroll tradicional.")
+        except Exception as e:
+            print(f" No se pudo encontrar el total de 'Inscriptos' ({e}). Se usará el método de scroll tradicional.")
+
+        last_count = -1
+        stuck_counter = 0 # Contador para evitar bucles infinitos
         while True:
-            # Contar los candidatos actualmente visibles en la página.
             candidatos_visibles = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
             current_count = len(candidatos_visibles)
+            print(f"  - Encontrados {current_count}/{total_candidatos_esperados if total_candidatos_esperados > 0 else '??'} candidatos.")
 
-            print(f"  - Encontrados {current_count} candidatos hasta ahora.")
-
-            # Si el número de candidatos no ha aumentado después de hacer scroll, asumimos que hemos llegado al final.
-            if current_count == last_count:
-                print(" No se cargaron más candidatos. Scroll finalizado.")
+            # Condición de salida principal: se alcanzó el total esperado.
+            if total_candidatos_esperados > 0 and current_count >= total_candidatos_esperados:
+                print(" Se ha alcanzado el número total de candidatos esperados. Scroll finalizado.")
                 break
+
+            # Condición de salida de seguridad: si el número no aumenta, es un fallback.
+            if current_count == last_count:
+                stuck_counter += 1
+                print(f"  - El número de candidatos no aumenta (intento {stuck_counter}/3).")
+                if stuck_counter >= 3:
+                    print(" El número de candidatos no ha aumentado en 3 intentos. Se asume que no hay más por cargar. Scroll finalizado.")
+                    break
+            else:
+                stuck_counter = 0 # Resetear si hay progreso
 
             last_count = current_count
 
-            # Hacemos scroll hasta el final de la página para disparar la carga de más candidatos.
-            print("  - Haciendo scroll hacia abajo...")
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
-            # Esperamos un tiempo prudencial para que la página cargue los nuevos elementos.
-            time.sleep(3) # Pausa de 3 segundos. Puede necesitar ajuste.
+            time.sleep(3)
 
         # Una vez finalizado el scroll, obtenemos la lista final y completa de candidatos.
         candidatos_links = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
