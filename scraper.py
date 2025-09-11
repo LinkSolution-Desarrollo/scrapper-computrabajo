@@ -262,14 +262,39 @@ try:
                 print(f" ❌ Fallback para obtener el título también falló: {e_fallback}")
 
 
-        # ---------- CANDIDATOS ----------
+        # ---------- CANDIDATOS (CON SCROLL PARA CARGA COMPLETA) ----------
+        # Se implementa un bucle de scroll para asegurar que todos los candidatos que se cargan de forma
+        # perezosa (lazy-loading) estén presentes en el DOM antes de empezar a procesarlos.
+        print(" Iniciando scroll para cargar todos los candidatos...")
+        last_count = 0
+        while True:
+            # Contar los candidatos actualmente visibles en la página.
+            candidatos_visibles = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
+            current_count = len(candidatos_visibles)
+
+            print(f"  - Encontrados {current_count} candidatos hasta ahora.")
+
+            # Si el número de candidatos no ha aumentado después de hacer scroll, asumimos que hemos llegado al final.
+            if current_count == last_count:
+                print(" No se cargaron más candidatos. Scroll finalizado.")
+                break
+
+            last_count = current_count
+
+            # Hacemos scroll hasta el final de la página para disparar la carga de más candidatos.
+            print("  - Haciendo scroll hacia abajo...")
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+            # Esperamos un tiempo prudencial para que la página cargue los nuevos elementos.
+            time.sleep(3) # Pausa de 3 segundos. Puede necesitar ajuste.
+
+        # Una vez finalizado el scroll, obtenemos la lista final y completa de candidatos.
         candidatos_links = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
         total_candidatos_en_pagina = len(candidatos_links)
-        print(f" Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{titulo_vacante_actual}'.")
+        print(f" Encontrados {total_candidatos_en_pagina} candidatos en total para la vacante '{titulo_vacante_actual}'.")
 
-        # Limitar el número de candidatos a procesar si es necesario (ej. MAX_CANDIDATOS_POR_VACANTE)
-        # total_a_procesar = min(100, total_candidatos_en_pagina)
-        total_a_procesar = total_candidatos_en_pagina # Procesar todos los encontrados
+        # Procesar todos los candidatos encontrados.
+        total_a_procesar = total_candidatos_en_pagina
         print(f"Se procesarán {total_a_procesar} candidatos para esta vacante.")
 
         for i in range(total_a_procesar):
