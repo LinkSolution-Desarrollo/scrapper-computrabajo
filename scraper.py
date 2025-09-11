@@ -193,46 +193,36 @@ try:
 
         titulo_vacante_actual = "No encontrado"  # Inicializar variable para el título
 
-        # ---------- DATOS DE LA VACANTE DESDE VISTA PREVIA ----------
+        # ---------- DATOS DE LA VACANTE DESDE EDITAR VACANTE ----------
         try:
-            preview_btn = driver.find_element(By.CSS_SELECTOR, "a[title='Vista previa']")
-            preview_href = preview_btn.get_attribute("href")
-            driver.execute_script("window.open(arguments[0]);", preview_href)
-            driver.switch_to.window(driver.window_handles[1]) # Cambiar a la nueva pestaña
-            time.sleep(3) # Espera para que cargue la vista previa
+            # Hacer clic en el botón de editar vacante
+            edit_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='btnEditVacancy']")))
+            edit_btn.click()
 
-            # Extracción robusta del título
-            titulo = "No encontrado" # Valor por defecto
-            try:
-                wait_preview = WebDriverWait(driver, 10)
-                title_selector = (By.CSS_SELECTOR, "h1.fw-600.color-title")
-                title_element = wait_preview.until(EC.presence_of_element_located(title_selector))
-                titulo = title_element.text.strip() if title_element.text.strip() else "Título vacío"
-            except TimeoutException:
-                print(" ❌ Error: Timeout esperando el título de la vacante en la vista previa.")
-                titulo = "No encontrado (Timeout)"
-            except Exception as e:
-                print(f" ❌ Error inesperado al extraer el título de la vacante: {e}")
-                titulo = "No encontrado (Error)"
+            # Esperar a que la página de edición cargue, buscando el input del título
+            wait_edit = WebDriverWait(driver, 10)
+            job_input_element = wait_edit.until(EC.presence_of_element_located((By.XPATH, "//*[@id='Job']")))
+
+            # Extraer título y complemento
+            titulo_base = job_input_element.get_attribute('value').strip()
+            complemento = driver.find_element(By.XPATH, "//*[@id='JobComplement']").get_attribute('value').strip()
+
+            if titulo_base and complemento:
+                titulo = f"{titulo_base} - {complemento}"
+            elif titulo_base:
+                titulo = titulo_base
+            else:
+                titulo = "No encontrado"
 
             titulo_vacante_actual = titulo
-            # Ajustar selectores si la estructura de la vista previa es diferente
-            descripcion_elements = driver.find_elements(By.CSS_SELECTOR, "div.order-1 > div.mb-20")
-            descripcion = "\n".join([elem.text for elem in descripcion_elements if elem.text.strip()]) if descripcion_elements else "No encontrado"
 
-            requisitos_div = driver.find_elements(By.XPATH, "//h3[contains(text(), 'Requisitos')]/following-sibling::div[1]")
-            requisitos = requisitos_div[0].text.strip() if requisitos_div else safe_extract_text(driver, By.CSS_SELECTOR, "div#Requirements") # Fallback
-
-            valorado_div = driver.find_elements(By.XPATH, "//h3[contains(text(), 'Valorado')]/following-sibling::div[1]")
-            valorado = valorado_div[0].text.strip() if valorado_div else safe_extract_text(driver, By.CSS_SELECTOR, "div#Valued") # Fallback
-
+            # Los otros campos no se extraen desde esta vista según el requerimiento.
+            descripcion = "No encontrado"
+            requisitos = "No encontrado"
+            valorado = "No encontrado"
 
             print("\n--- VACANTE ---")
             print(f"Título: {titulo}")
-            requisitos_preview = (requisitos.replace('\n', ' ')[:100]) if requisitos != "No encontrado" else "No encontrado"
-            valorado_preview = (valorado.replace('\n', ' ')[:100]) if valorado != "No encontrado" else "No encontrado"
-            print(f"Requisitos (primeros 100 chars): {requisitos_preview}")
-            print(f"Valorado (primeros 100 chars): {valorado_preview}")
 
             data_vacante = {
                 "titulo": titulo,
@@ -243,21 +233,19 @@ try:
             }
 
             try:
-                # Asegúrate que esta URL es accesible desde el contenedor
-                r = requests.post("http://10.20.62.101:5678/webhook/vacant", json=data_vacante, timeout=10)
-                print(f"API Vacante: {' Enviada' if r.status_code == 200 else f' Error {r.status_code}: {r.text}'}")
+                # Enviar a nuevo webhook
+                r = requests.post("http://10.20.62.101:5678/webhook/editar_vacante", json=data_vacante, timeout=10)
+                print(f"API Editar Vacante: {' Enviada' if r.status_code == 200 else f' Error {r.status_code}: {r.text}'}")
             except Exception as e:
                 print(f" Error al enviar vacante a API: {e}")
 
-            driver.close() # Cerrar la pestaña de vista previa
-            driver.switch_to.window(driver.window_handles[0]) # Volver a la pestaña principal
-        except Exception as e:
-            print(f" ⚠️ No se pudo procesar la vista previa de la vacante: {e}. Intentando fallback.")
-            # Si la vista previa falla, asegurarse de estar en la ventana correcta si se abrió una nueva
-            if len(driver.window_handles) > 1:
-                driver.close()
-                driver.switch_to.window(driver.window_handles[0])
+            # Volver a la página de la vacante para procesar candidatos
+            print(f" Volviendo a la lista de candidatos para la vacante: {href}")
+            driver.get(href)
+            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.match-link")))
 
+        except Exception as e:
+            print(f" ⚠️ No se pudo procesar la edición de la vacante: {e}.")
             # FALLBACK: Intentar extraer el título desde la página de candidatos
             try:
                 print(" ℹ️ Intentando extraer título desde la página de candidatos (fallback)...")
@@ -274,314 +262,223 @@ try:
                 print(f" ❌ Fallback para obtener el título también falló: {e_fallback}")
 
 
-        # ---------- CANDIDATOS ----------
-        candidatos_links = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
-        total_candidatos_en_pagina = len(candidatos_links)
-        print(f" Encontrados {total_candidatos_en_pagina} candidatos para la vacante '{titulo_vacante_actual}'.")
+        # ---------- CANDIDATOS (CON SCROLL INTELIGENTE) ----------
+        # Bucle de scroll mejorado: extrae el número total de candidatos y hace scroll
+        # hasta que ese número se alcanza, con mecanismos de seguridad.
+        print(" Iniciando scroll inteligente para cargar todos los candidatos...")
+        
+        total_candidatos_esperados = 0
+        try:
+            # El selector apunta a la pestaña que contiene el texto "Inscriptos (X)"
+            # Se usa un selector XPath más específico para encontrar el span por su texto.
+            inscriptos_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//span[contains(text(), 'Inscriptos')]"))
+            )
+            inscriptos_texto = inscriptos_element.text
+            match = re.search(r'\((\d+)\)', inscriptos_texto)
+            if match:
+                total_candidatos_esperados = int(match.group(1))
+                print(f" Total de candidatos esperados según la página: {total_candidatos_esperados}")
+            else:
+                print(" No se pudo extraer el número de la pestaña 'Inscriptos'. Se usará el método de scroll tradicional.")
+        except Exception as e:
+            print(f" No se pudo encontrar el total de 'Inscriptos' ({e}). Se usará el método de scroll tradicional.")
 
-        # Limitar el número de candidatos a procesar si es necesario (ej. MAX_CANDIDATOS_POR_VACANTE)
-        # total_a_procesar = min(100, total_candidatos_en_pagina)
-        total_a_procesar = total_candidatos_en_pagina # Procesar todos los encontrados
-        print(f"Se procesarán {total_a_procesar} candidatos para esta vacante.")
+        scrollable_container = None
+        try:
+            scrollable_container = driver.find_element(By.ID, "DivMatchesList")
+            print(" Contenedor de scroll específico encontrado (DivMatchesList).")
+        except NoSuchElementException:
+            print(" ⚠️ No se encontró el contenedor de scroll específico. Se usarán métodos de scroll de fallback.")
 
-        for i in range(total_a_procesar):
-            print(f"\nIteración {i + 1} del bucle de candidatos.")
-            # Volver a encontrar los elementos para evitar StaleElementReferenceException
-            # y esperar a que estén presentes
-            try:
-                print(" Buscando lista actualizada de candidatos...")
-                wait = WebDriverWait(driver, 10)
-                candidatos_actualizados = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.match-link")))
-                print(f" Encontrados {len(candidatos_actualizados)} candidatos actualizados en la página.")
-            except TimeoutException:
-                print(" Timeout: No se encontraron enlaces de candidatos después de esperar. Terminando vacante.")
+        last_count = -1
+        stuck_counter = 0 # Contador para evitar bucles infinitos
+        while True:
+            candidatos_visibles = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
+            current_count = len(candidatos_visibles)
+            print(f"  - Encontrados {current_count}/{total_candidatos_esperados if total_candidatos_esperados > 0 else '??'} candidatos.")
+
+            # Condición de salida principal: se alcanzó el total esperado.
+            if total_candidatos_esperados > 0 and current_count >= total_candidatos_esperados:
+                print(" Se ha alcanzado el número total de candidatos esperados. Scroll finalizado.")
                 break
-            except Exception as e:
-                print(f" Error al buscar candidatos actualizados: {e}. Terminando vacante.")
-                break
 
-            if i >= len(candidatos_actualizados):
-                print(f" Índice {i} fuera de rango para candidatos_actualizados (longitud: {len(candidatos_actualizados)}). Algo salió mal. Terminando vacante.")
-                break
+            # Condición de salida de seguridad: si el número no aumenta, es un fallback.
+            if current_count == last_count:
+                # Si ya hemos encontrado algunos candidatos y el total esperado es conocido pero no alcanzado,
+                # es probable que el scroll haya terminado de verdad.
+                if current_count > 0 and total_candidatos_esperados > 0 and current_count < total_candidatos_esperados:
+                    print(f"  - Alerta: El scroll se detuvo en {current_count} pero se esperaban {total_candidatos_esperados}. Continuando con los encontrados.")
+                    break
 
-            try:
-                candidato_link_element = candidatos_actualizados[i]
-                
-                # Guardar el texto del link (nombre del candidato) antes de hacer clic
-                # Es posible que el elemento no sea visible todavía, así que intentamos obtener el atributo si el texto falla.
-                try:
-                    nombre_candidato_link = candidato_link_element.text.strip()
-                    if not nombre_candidato_link: # Si el texto está vacío, intentar con 'data-username'
-                        nombre_candidato_link = candidato_link_element.get_attribute('data-username')
-                except Exception as e_text:
-                    nombre_candidato_link = f"Nombre no extraíble ({e_text})"
-                
-                print(f" Procesando candidato {i + 1}/{total_a_procesar}: '{nombre_candidato_link}' (Elemento #{i})")
+                stuck_counter += 1
+                print(f"  - El número de candidatos no aumenta (intento {stuck_counter}/3).")
+                if stuck_counter >= 3:
+                    print(" El número de candidatos no ha aumentado en 3 intentos. Se asume que no hay más por cargar. Scroll finalizado.")
+                    break
+            else:
+                stuck_counter = 0 # Resetear si hay progreso
 
-                # Hacer scroll para asegurar que el elemento esté en la vista
-                try:
-                    print(f" Haciendo scroll hacia el candidato: {nombre_candidato_link}")
-                    driver.execute_script("arguments[0].scrollIntoView(true);", candidato_link_element)
-                    time.sleep(0.5) # Pequeña pausa para que el scroll se complete
-                except Exception as e_scroll:
-                    print(f"  Advertencia: No se pudo hacer scroll hacia el elemento: {e_scroll}")
-
-                # Esperar a que el elemento sea clickeable
-                print(f" Esperando a que el candidato '{nombre_candidato_link}' sea clickeable...")
-                # Usar el elemento original de la lista `candidatos_actualizados[i]` para la espera y el clic
-                candidato_clickable = wait.until(EC.element_to_be_clickable(candidatos_actualizados[i]))
-                
-                print(f" Haciendo clic en candidato: {nombre_candidato_link}")
-                # Usar JavaScript para hacer clic si el clic normal falla a veces
-                driver.execute_script("arguments[0].click();", candidato_clickable)
-                # candidato_clickable.click()
-                
-                # time.sleep(3) # Reemplazado por espera explícita si es necesario, o mantener si la página carga mucho JS
-                # Esperar a que algún elemento distintivo de la página de detalle del candidato aparezca
-                try:
-                    WebDriverWait(driver, 15).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize")) # Selector del nombre del candidato en detalle
-                    )
-                    print(" Página de detalle del candidato cargada.")
-                except TimeoutException:
-                    print(" Timeout esperando que la página de detalle del candidato cargue. Continuando con la extracción...")
-
-
-                # Extracción de datos del candidato
-                nombre = safe_extract_text(driver, By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize")
-                numero = safe_extract_text(driver, By.CSS_SELECTOR, "a.js_WhatsappLink")
-                cv_url = safe_extract_attribute(driver, By.CSS_SELECTOR, "a[title$='.pdf']", "href") # Asumimos que siempre es .pdf
-                email = safe_extract_text(driver, By.CSS_SELECTOR, "a.text-nowrap.mb-05 span")
-
-                dni = "No encontrado"
-                try:
-                    # Buscar DNI de forma más robusta
-                    nationality_section_elements = driver.find_elements(By.XPATH, "//div[span[contains(., 'Nacionalidad') or contains(., 'Nationality')]]")
-                    if nationality_section_elements:
-                        nationality_section_text = nationality_section_elements[0].text
-                        # Patrones comunes para DNI en España (puede necesitar ajustes para otros formatos/países)
-                        dni_match = re.search(r"(D\.N\.I\.?|NIF|NIE)\s*[:\-]?\s*([A-Z0-9\-\.]{7,12})", nationality_section_text, re.IGNORECASE)
-                        if dni_match:
-                            dni = dni_match.group(2).strip().replace('.', '').replace('-', '')
-                        else: # Fallback si no encuentra DNI específico, buscar un número largo
-                            numbers_in_section = re.findall(r'\b\d{7,9}[A-Za-z]?\b', nationality_section_text)
-                            if numbers_in_section:
-                                dni = numbers_in_section[0]
-                except Exception as e_dni:
-                    print(f" No se pudo extraer DNI automáticamente: {e_dni}")
-                    pass
-
-                local_cv_path = None
-                if cv_url != "No encontrado":
-                    print(f" Intentando descargar CV desde: {cv_url}")
-                    local_cv_path = download_file(driver, cv_url) # Pasar driver a download_file
-                    if local_cv_path and os.getenv("MINIO_ENDPOINT"): # Solo subir si hay endpoint de MinIO
-                        upload_to_s3(local_cv_path, dni=dni)
-
+            last_count = current_count
+            
+            # --- LÓGICA DE SCROLL FINAL Y MÁS FIABLE ---
+            # Hacemos scroll directamente en el contenedor DivMatchesList si se encontró.
+            if scrollable_container:
+                print("  - Haciendo scroll dentro del contenedor específico...")
+                driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_container)
+            else:
+                # Fallback si el contenedor no se encontró, usar el método de 'scroll a último elemento'.
+                if candidatos_visibles:
+                    print("  - (Fallback) Haciendo scroll hacia el último candidato visible...")
+                    last_element = candidatos_visibles[-1]
+                    driver.execute_script("arguments[0].scrollIntoView(true);", last_element)
                 else:
-                    print(" CV no disponible para este candidato.")
+                    # Último recurso: scroll de la página completa.
+                    print("  - (Fallback) No se encontraron candidatos, haciendo scroll genérico...")
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
+            time.sleep(3)
 
-                respuestas_filtro_texto = "No disponibles"
-                wait_short = WebDriverWait(driver, 5) # Espera corta para elementos que deberían aparecer rápido
-                wait_long = WebDriverWait(driver, 10) # Espera más larga para contenido AJAX o modales
+        # --- ARQUITECTURA REFACTORIZADA PARA PROCESAR CANDIDATOS ---
+        # 1. Recopilar todas las URLs de los candidatos después del scroll.
+        print("\nRecopilando todas las URLs de los candidatos...")
+        candidate_elements = driver.find_elements(By.CSS_SELECTOR, "a.match-link")
+        candidate_hrefs = [elem.get_attribute('href') for elem in candidate_elements if elem.get_attribute('href')]
+        
+        if not candidate_hrefs:
+            print("No se encontraron URLs de candidatos para procesar en esta vacante.")
+        else:
+            print(f"Se encontraron {len(candidate_hrefs)} URLs de candidatos para procesar.")
 
+            # 2. Invertir la lista para procesar del más nuevo al más antiguo, según solicitado.
+            candidate_hrefs.reverse()
+            print("La lista de URLs se ha invertido para procesar los candidatos más nuevos primero.")
+
+            # 3. Iterar sobre la lista de URLs (método más robusto y estable).
+            for i, candidate_url in enumerate(candidate_hrefs):
+                print(f"\n--- Procesando candidato {i + 1}/{len(candidate_hrefs)} ---")
                 try:
-                    print(" Buscando la pestaña 'Resultados'...")
-                    # Intentar localizar la pestaña "Resultados"
-                    # Primero por ID, que es más específico
-                    resultados_tab_xpath = "//a[@id='ResultsTabAjax' or contains(@href,'#ResultsTabAjax')]" # Combina ID y href
+                    # Navegar directamente a la URL del candidato.
+                    print(f"Navegando a: {candidate_url}")
+                    driver.get(candidate_url)
                     
-                    resultados_tab_clickable = wait_long.until(EC.element_to_be_clickable((By.XPATH, resultados_tab_xpath)))
-                    
-                    # Verificar si la pestaña ya está activa directamente en el enlace <a>
-                    # El XPath resultados_tab_xpath ya apunta al elemento <a>
-                    is_active = "active" in resultados_tab_clickable.get_attribute("class")
-                    
-                    if not is_active:
-                        print(" La pestaña 'Resultados' no está activa. Haciendo clic...")
-                        driver.execute_script("arguments[0].click();", resultados_tab_clickable)
-                        # Esperar a que la pestaña se marque como activa, verificando la clase en el mismo elemento <a>
-                        WebDriverWait(driver, 10).until( # Aumentar ligeramente la espera aquí por si la actualización de clase tarda
-                            # Re-localizar el elemento dentro de la lambda para obtener su estado más actual
-                            lambda d: "active" in d.find_element(By.XPATH, resultados_tab_xpath).get_attribute("class")
-                        )
-                        print(" Pestaña 'Resultados' activada.")
-                    else:
-                        print(" Pestaña 'Resultados' ya está activa.")
+                    # Esperar a que la página de detalle del candidato cargue.
+                    WebDriverWait(driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize"))
+                    )
+                    print("Página de detalle del candidato cargada.")
 
-                    # Buscar el enlace para "Ver respuestas del cuestionario"
-                    print(" Buscando enlace 'Ver respuestas del cuestionario' (a.js_lnkQuestionnaireWeightedDetail)...")
-                    ver_respuestas_link_element = wait_long.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.js_lnkQuestionnaireWeightedDetail")))
-                    print(" Enlace 'Ver respuestas del cuestionario' encontrado y clickeable. Haciendo clic...")
-                    driver.execute_script("arguments[0].click();", ver_respuestas_link_element)
+                    # --- INICIO DE LÓGICA DE EXTRACCIÓN (Preservada del bucle original) ---
+                    nombre = safe_extract_text(driver, By.CSS_SELECTOR, "div.font-3xl.lh-120.fw-600.text-capitalize")
+                    numero = safe_extract_text(driver, By.CSS_SELECTOR, "a.js_WhatsappLink")
+                    cv_url = safe_extract_attribute(driver, By.CSS_SELECTOR, "a[title$='.pdf']", "href")
+                    email = safe_extract_text(driver, By.CSS_SELECTOR, "a.text-nowrap.mb-05 span")
 
-                    # Esperar a que el modal (divResult) sea visible
-                    print(" Esperando a que el modal de resultados (divResult) sea visible...")
-                    modal_content = wait_long.until(EC.visibility_of_element_located((By.ID, "divResult")))
-                    print(" Modal de resultados (divResult) visible.")
-
-                    # Esperar a que los items de preguntas/respuestas estén presentes dentro del modal
-                    print(" Buscando items de preguntas/respuestas (ol.pl-50 > li) dentro del modal...")
-                    # Usamos presence_of_all_elements_located para obtener una lista
-                    preguntas_respuestas_items = wait_long.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "#divResult ol.pl-50 > li")))
-                    print(f" Encontrados {len(preguntas_respuestas_items)} items de preguntas/respuestas.")
-
-                    if preguntas_respuestas_items:
-                        respuestas_list = []
-                        for item_idx, item in enumerate(preguntas_respuestas_items):
-                            try:
-                                pregunta = item.find_element(By.XPATH, "./span").text.strip()
-                                # La respuesta está en un span dentro de un div que es hijo del li
-                                respuesta_elements = item.find_elements(By.XPATH, "./div/span")
-                                respuesta = respuesta_elements[0].text.strip() if respuesta_elements and respuesta_elements[0].text.strip() else "Respuesta no proporcionada"
-                                respuestas_list.append(f"{pregunta}: {respuesta}")
-                            except TimeoutException:
-                                print(f"  Timeout extrayendo pregunta o respuesta para el item #{item_idx}.")
-                                respuestas_list.append("Error al extraer Q&A individual (Timeout)")
-                            except Exception as e_qa:
-                                print(f"  Error extrayendo pregunta/respuesta #{item_idx}: {e_qa}")
-                                respuestas_list.append("Error al extraer Q&A individual")
-                        
-                        if respuestas_list:
-                            respuestas_filtro_texto = " | ".join(respuestas_list)
-                        else:
-                            respuestas_filtro_texto = "No se pudieron extraer preguntas/respuestas individuales."
-                    else:
-                        respuestas_filtro_texto = "No se encontraron items de preguntas/respuestas en el modal."
-
-
-                    # Cerrar modal
+                    dni = "No encontrado"
                     try:
-                        print(" Intentando cerrar el modal de resultados...")
-                        # Esperar a que el botón de cierre sea clickeable
+                        nationality_section_elements = driver.find_elements(By.XPATH, "//div[span[contains(., 'Nacionalidad') or contains(., 'Nationality')]]")
+                        if nationality_section_elements:
+                            nationality_section_text = nationality_section_elements[0].text
+                            dni_match = re.search(r"(D\.N\.I\.?|NIF|NIE)\s*[:\-]?\s*([A-Z0-9\-\.]{7,12})", nationality_section_text, re.IGNORECASE)
+                            if dni_match:
+                                dni = dni_match.group(2).strip().replace('.', '').replace('-', '')
+                            else:
+                                numbers_in_section = re.findall(r'\b\d{7,9}[A-Za-z]?\b', nationality_section_text)
+                                if numbers_in_section:
+                                    dni = numbers_in_section[0]
+                    except Exception as e_dni:
+                        print(f" No se pudo extraer DNI automáticamente: {e_dni}")
+
+                    local_cv_path = None
+                    if cv_url != "No encontrado":
+                        print(f" Intentando descargar CV desde: {cv_url}")
+                        local_cv_path = download_file(driver, cv_url)
+                        if local_cv_path and os.getenv("MINIO_ENDPOINT"):
+                            upload_to_s3(local_cv_path, dni=dni)
+                    else:
+                        print(" CV no disponible para este candidato.")
+
+                    respuestas_filtro_texto = "No disponibles"
+                    wait_long = WebDriverWait(driver, 10)
+                    try:
+                        resultados_tab_xpath = "//a[@id='ResultsTabAjax' or contains(@href,'#ResultsTabAjax')]"
+                        resultados_tab_clickable = wait_long.until(EC.element_to_be_clickable((By.XPATH, resultados_tab_xpath)))
+                        is_active = "active" in resultados_tab_clickable.get_attribute("class")
+                        if not is_active:
+                            driver.execute_script("arguments[0].click();", resultados_tab_clickable)
+                            WebDriverWait(driver, 10).until(lambda d: "active" in d.find_element(By.XPATH, resultados_tab_xpath).get_attribute("class"))
+                        
+                        ver_respuestas_link_element = wait_long.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.js_lnkQuestionnaireWeightedDetail")))
+                        driver.execute_script("arguments[0].click();", ver_respuestas_link_element)
+                        
+                        wait_long.until(EC.visibility_of_element_located((By.ID, "divResult")))
+                        preguntas_respuestas_items = wait_long.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "#divResult ol.pl-50 > li")))
+                        
+                        if preguntas_respuestas_items:
+                            respuestas_list = []
+                            for item_idx, item in enumerate(preguntas_respuestas_items):
+                                try:
+                                    pregunta = item.find_element(By.XPATH, "./span").text.strip()
+                                    respuesta_elements = item.find_elements(By.XPATH, "./div/span")
+                                    respuesta = respuesta_elements[0].text.strip() if respuesta_elements and respuesta_elements[0].text.strip() else "Respuesta no proporcionada"
+                                    respuestas_list.append(f"{pregunta}: {respuesta}")
+                                except Exception as e_qa:
+                                    respuestas_list.append("Error al extraer Q&A individual")
+                            respuestas_filtro_texto = " | ".join(respuestas_list) if respuestas_list else "No se pudieron extraer preguntas/respuestas individuales."
+                        else:
+                            respuestas_filtro_texto = "No se encontraron items de preguntas/respuestas en el modal."
+                        
                         close_button = wait_long.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#divResult button.close")))
                         driver.execute_script("arguments[0].click();", close_button)
-                        # Esperar a que el modal desaparezca (opcional pero bueno para la estabilidad)
                         wait_long.until(EC.invisibility_of_element_located((By.ID, "divResult")))
-                        print(" Modal de resultados cerrado.")
-                    except TimeoutException:
-                        print(" Timeout esperando que el botón de cierre del modal sea clickeable o que el modal desaparezca.")
-                    except Exception as e_close_modal:
-                        print(f" No se pudo cerrar el modal de respuestas de forma controlada: {e_close_modal}")
 
-                except TimeoutException as e_timeout:
-                    print(f" Timeout general durante la extracción de respuestas de filtro: {e_timeout}")
-                    current_url_on_error = driver.current_url
-                    page_title_on_error = driver.title
-                    print(f" URL actual: {current_url_on_error}, Título: {page_title_on_error}")
-                    if "divResult" in str(e_timeout).lower():
-                         respuestas_filtro_texto = "Error: Timeout esperando el modal de resultados."
-                    elif "js_lnkQuestionnaireWeightedDetail" in str(e_timeout).lower():
-                         respuestas_filtro_texto = "Error: Timeout esperando el enlace para ver respuestas."
-                    elif "ResultsTabAjax" in str(e_timeout).lower():
-                         respuestas_filtro_texto = "Error: Timeout esperando la pestaña de resultados."
-                    else:
-                         respuestas_filtro_texto = "Error: Timeout no especificado en la extracción de filtros."
-                    print(f"Debug Info: TimeoutException - {str(e_timeout)}")
+                    except Exception as e_filtro:
+                        print(f" No se pudieron obtener las respuestas de filtro: {e_filtro}")
+                        respuestas_filtro_texto = "Error al extraer respuestas de filtro."
 
-
-                except NoSuchElementException as e_no_such:
-                    # Imprimir el mensaje de error completo de Selenium
-                    full_error_message = f"NoSuchElementException capturada. Mensaje original de Selenium: {str(e_no_such)}"
-                    print(full_error_message)
+                    direccion = safe_extract_text(driver, By.CSS_SELECTOR, "span.js_CandidateAddress")
+                    resumen = safe_extract_text(driver, By.CSS_SELECTOR, "div#Summary p.text-break-word")
+                    salario_deseado_elements = driver.find_elements(By.XPATH, "//div[span[contains(., 'Salario deseado') or contains(., 'Desired salary')]]/div[contains(@class, 'col-9')]/div")
+                    salario_deseado = salario_deseado_elements[0].text.strip() if salario_deseado_elements else "No encontrado"
                     
-                    # Guardar un mensaje de error más informativo que incluya parte del error original
-                    # para el campo respuestas_filtro_texto.
-                    # Tomar los primeros N caracteres del mensaje de error para no hacerlo demasiado largo.
-                    detalle_error_selenium = str(e_no_such).splitlines()[0] if str(e_no_such).splitlines() else str(e_no_such) # A menudo la primera línea es la más útil
-                    respuestas_filtro_texto = f"Error (NoSuchElement): {detalle_error_selenium[:150]}" # Primeros 150 chars del detalle
-                    
-                    print(f"Debug Info: Asignado '{respuestas_filtro_texto}' debido a NoSuchElementException.")
+                    fuente_candidato = "Fuente no especificada"
+                    try:
+                        fuente_element = driver.find_element(By.XPATH, "//img[contains(@src, '/images/publishers/icons/')]/following-sibling::span")
+                        fuente_candidato = fuente_element.text.strip() if fuente_element and fuente_element.text.strip() else "Fuente no especificada"
+                    except NoSuchElementException:
+                        pass
 
-                except Exception as e_filtro:
-                    print(f" Error general (Exception) al obtener respuestas de filtro: {type(e_filtro).__name__} - {e_filtro}")
-                    respuestas_filtro_texto = f"Error general al extraer respuestas de filtro ({type(e_filtro).__name__})."
-                    print(f"Debug Info: Exception type: {type(e_filtro).__name__} - {str(e_filtro)}")
+                    print("\n--- CANDIDATO DETALLE ---")
+                    print(f"Vacante en página: {titulo_vacante_actual}")
+                    print(f"Nombre: {nombre}")
+                    # ... (demás prints para depuración)
 
-                direccion_elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'icon-location')]/following-sibling::span")
-                direccion = direccion_elements[0].text.strip() if direccion_elements else safe_extract_text(driver, By.CSS_SELECTOR, "span.ml-20") # Fallback
+                    data_candidato = {
+                        "vacante": titulo_vacante_actual,
+                        "nombre": nombre,
+                        "numero": numero,
+                        "curriculum_url": cv_url,
+                        "curriculum_descargado": os.path.basename(local_cv_path) if local_cv_path else "No descargado",
+                        "email": email,
+                        "dni": dni,
+                        "direccion": direccion,
+                        "resumen": resumen,
+                        "salario_deseado": salario_deseado,
+                        "respuestas_filtro": respuestas_filtro_texto,
+                        "source": fuente_candidato
+                    }
 
-                direccion = safe_extract_text(driver, By.CSS_SELECTOR, "span.js_CandidateAddress")
+                    try:
+                        r_cand = requests.post("http://10.20.62.101:5678/webhook/insert", json=data_candidato, timeout=10)
+                        print(f"API Candidato: {' Enviado' if r_cand.status_code == 200 else f' Error {r_cand.status_code}: {r_cand.text}'}")
+                    except Exception as e_http_cand:
+                        print(f" Error HTTP al enviar candidato: {e_http_cand}")
+                    # --- FIN DE LÓGICA DE EXTRACCIÓN ---
 
-                resumen = safe_extract_text(driver, By.CSS_SELECTOR, "div#Summary p.text-break-word")
-
-                salario_deseado_elements = driver.find_elements(By.XPATH, "//div[span[contains(., 'Salario deseado') or contains(., 'Desired salary')]]/div[contains(@class, 'col-9')]/div")
-                salario_deseado = salario_deseado_elements[0].text.strip() if salario_deseado_elements else "No encontrado"
-
-                # Extracción de la fuente del candidato
-                xpath_fuente = "//img[contains(@src, '/images/publishers/icons/')]/following-sibling::span"
-                fuente_candidato = "Fuente no especificada" # Valor por defecto
-                try:
-                    fuente_element = driver.find_element(By.XPATH, xpath_fuente)
-                    fuente_candidato = fuente_element.text.strip() if fuente_element and fuente_element.text.strip() else "Fuente no especificada"
-                except NoSuchElementException:
-                    print(" No se encontró el elemento de la fuente del candidato usando XPath.")
-                except Exception as e_fuente:
-                    print(f" Error al extraer la fuente del candidato: {e_fuente}")
-
-                print("\n--- CANDIDATO DETALLE ---")
-                print(f"Vacante en página: {titulo_vacante_actual}")
-                print(f"Nombre: {nombre}")
-                print(f"Teléfono: {numero}")
-                print(f"CV URL: {cv_url}")
-                print(f"Email: {email}")
-                print(f"DNI: {dni}")
-                print(f"Dirección: {direccion}")
-                resumen_preview = (resumen.replace('\n', ' ')[:100]) if resumen != "No encontrado" else "No encontrado"
-                print(f"Resumen (primeros 100 chars): {resumen_preview}")
-                print(f"Salario Deseado: {salario_deseado}")
-                print(f"Fuente del Candidato: {fuente_candidato}") # Imprimir la fuente extraída
-                print(f"Respuestas filtro: {respuestas_filtro_texto[:200]}...") # Imprimir solo una parte
-
-                data_candidato = {
-                    "vacante": titulo_vacante_actual, # Usar el nombre de la vacante de la página de candidatos
-                    "nombre": nombre,
-                    "numero": numero,
-                    "curriculum_url": cv_url, # Enviar la URL del CV
-                    "curriculum_descargado": os.path.basename(local_cv_path) if local_cv_path else "No descargado",
-                    "email": email,
-                    "dni": dni,
-                    "direccion": direccion,
-                    "resumen": resumen,
-                    "salario_deseado": salario_deseado,
-                    "respuestas_filtro": respuestas_filtro_texto,
-                    "source": fuente_candidato # Usar la fuente extraída dinámicamente
-                }
-
-                try:
-                    # Asegúrate que esta URL es accesible desde el contenedor
-                    r_cand = requests.post("http://10.20.62.101:5678/webhook/insert", json=data_candidato, timeout=10)
-                    print(f"API Candidato: {' Enviado' if r_cand.status_code == 200 else f' Error {r_cand.status_code}: {r_cand.text}'}")
-                except Exception as e_http_cand:
-                    print(f" Error HTTP al enviar candidato: {e_http_cand}")
-
-                # Volver a la lista de candidatos (página de la vacante)
-                print(f" Volviendo a la página de la vacante: {href}")
-                driver.get(href) # Usar href de la vacante actual en lugar de driver.back()
-                # Esperar a que la lista de candidatos (o un marcador de ella) vuelva a cargar
-                try:
-                    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.match-link")))
-                    print(" Página de la vacante (lista de candidatos) cargada después de volver.")
-                except TimeoutException:
-                    print(" Timeout: La lista de candidatos no pareció recargarse después de volver a la URL de la vacante. Puede haber problemas en la siguiente iteración.")
-                
-                # time.sleep(3) # Reemplazado por espera explícita
-
-            except Exception as e_cand_loop:
-                nombre_ref = nombre_candidato_link if 'nombre_candidato_link' in locals() and nombre_candidato_link else 'Nombre desconocido'
-                print(f" Error procesando candidato #{i + 1} ('{nombre_ref}'): {e_cand_loop}")
-                print(f" URL actual al momento del error: {driver.current_url}")
-                print(" Intentando volver a la página de la vacante para continuar con el siguiente candidato...")
-                try:
-                    driver.get(href) # 'href' es la URL de la vacante (lista de sus candidatos)
-                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.match-link")))
-                    print(" Recuperado en la página de la vacante.")
-                except Exception as e_recovery:
-                    print(f" Falló el intento de recuperación volviendo a la URL de la vacante: {e_recovery}")
-                    print(f" Terminando el procesamiento de candidatos para esta vacante: {href}")
-                    break # Salir del bucle de candidatos para esta vacante
-                continue # Continuar con el siguiente candidato
+                except Exception as e_cand_loop:
+                    print(f" ❌ Error fatal procesando la URL {candidate_url}: {e_cand_loop}")
+                    print(" No se puede continuar con este candidato. Pasando al siguiente.")
+                    continue # Continuar con la siguiente URL
 
         print(f"--- Fin del procesamiento de candidatos para la vacante: {href} ---")
         print("-" * 60)
