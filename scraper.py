@@ -284,6 +284,13 @@ try:
         except Exception as e:
             print(f" No se pudo encontrar el total de 'Inscriptos' ({e}). Se usará el método de scroll tradicional.")
 
+        scrollable_container = None
+        try:
+            scrollable_container = driver.find_element(By.ID, "DivMatchesList")
+            print(" Contenedor de scroll específico encontrado (DivMatchesList).")
+        except NoSuchElementException:
+            print(" ⚠️ No se encontró el contenedor de scroll específico. Se usarán métodos de scroll de fallback.")
+
         last_count = -1
         stuck_counter = 0 # Contador para evitar bucles infinitos
         while True:
@@ -298,6 +305,12 @@ try:
 
             # Condición de salida de seguridad: si el número no aumenta, es un fallback.
             if current_count == last_count:
+                # Si ya hemos encontrado algunos candidatos y el total esperado es conocido pero no alcanzado,
+                # es probable que el scroll haya terminado de verdad.
+                if current_count > 0 and total_candidatos_esperados > 0 and current_count < total_candidatos_esperados:
+                    print(f"  - Alerta: El scroll se detuvo en {current_count} pero se esperaban {total_candidatos_esperados}. Continuando con los encontrados.")
+                    break
+
                 stuck_counter += 1
                 print(f"  - El número de candidatos no aumenta (intento {stuck_counter}/3).")
                 if stuck_counter >= 3:
@@ -308,7 +321,22 @@ try:
 
             last_count = current_count
 
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            # --- LÓGICA DE SCROLL FINAL Y MÁS FIABLE ---
+            # Hacemos scroll directamente en el contenedor DivMatchesList si se encontró.
+            if scrollable_container:
+                print("  - Haciendo scroll dentro del contenedor específico...")
+                driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_container)
+            else:
+                # Fallback si el contenedor no se encontró, usar el método de 'scroll a último elemento'.
+                if candidatos_visibles:
+                    print("  - (Fallback) Haciendo scroll hacia el último candidato visible...")
+                    last_element = candidatos_visibles[-1]
+                    driver.execute_script("arguments[0].scrollIntoView(true);", last_element)
+                else:
+                    # Último recurso: scroll de la página completa.
+                    print("  - (Fallback) No se encontraron candidatos, haciendo scroll genérico...")
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
             time.sleep(3)
 
         # Una vez finalizado el scroll, obtenemos la lista final y completa de candidatos.
