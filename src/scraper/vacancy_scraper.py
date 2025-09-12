@@ -42,14 +42,55 @@ def scrape_vacancy_details(driver, vacancy_url):
         else:
             titulo_vacante_actual = titulo_base or "No encontrado"
 
+        # --- Scrape Detailed Fields ---
+
+        # 1. Scrape Description
+        descripcion_xpath = "//label[contains(text(), 'Descripción')]/following-sibling::div//div[contains(@class, 'ql-editor')]"
+        descripcion = utils.safe_extract_inner_html(driver, By.XPATH, descripcion_xpath)
+
+        # 2. Scrape Structured Requisitos
+        try:
+            age_min = utils.safe_extract_attribute(driver, By.ID, "AgeMin", "value", default="")
+            age_max = utils.safe_extract_attribute(driver, By.ID, "AgeMax", "value", default="")
+
+            # For dropdowns, we get the text of the selected option in the button
+            gender_xpath = "//button[@id='idSex']/span[not(@class)]"
+            experience_xpath = "//button[@id='idExperienceRange']/span[not(@class)]"
+            education_xpath = "//button[@id='idStudy1Min']/span[not(@class)]"
+
+            gender = utils.safe_extract_text(driver, By.XPATH, gender_xpath, default="No especificado")
+            experience = utils.safe_extract_text(driver, By.XPATH, experience_xpath, default="No especificado")
+            education = utils.safe_extract_text(driver, By.XPATH, education_xpath, default="No especificado")
+
+            requisitos_parts = []
+            if age_min and age_max:
+                requisitos_parts.append(f"Rango de edad: {age_min}-{age_max}")
+            if gender and gender != "No especificado":
+                requisitos_parts.append(f"Género: {gender}")
+            if experience and experience != "No especificado":
+                requisitos_parts.append(f"Experiencia: {experience}")
+            if education and education != "No especificado":
+                requisitos_parts.append(f"Nivel de educación: {education}")
+
+            requisitos = " | ".join(requisitos_parts) if requisitos_parts else "No encontrado"
+
+        except Exception as e:
+            print(f"  -> Error extrayendo requisitos estructurados: {e}")
+            requisitos = "Error al extraer"
+
+        # 3. Valorado field (not implemented as per user feedback)
+        valorado = "No encontrado"
+
         print("\n--- VACANTE ---")
         print(f"Título: {titulo_vacante_actual}")
+        print(f"Descripción: {'Encontrada' if descripcion != 'No encontrado' else 'No encontrada'}")
+        print(f"Requisitos: {requisitos}")
 
         data_vacante = {
             "titulo": titulo_vacante_actual,
-            "descripcion": "No encontrado",
-            "requisitos": "No encontrado",
-            "valorado": "No encontrado",
+            "descripcion": descripcion,
+            "requisitos": requisitos,
+            "valorado": valorado,
             "source": "pandape"
         }
         utils.send_to_webhook(config.WEBHOOK_VACANCY_URL, data_vacante)

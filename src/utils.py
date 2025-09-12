@@ -21,6 +21,14 @@ def safe_extract_attribute(driver, by, value, attribute, default="No encontrado"
     except Exception:
         return default
 
+def safe_extract_inner_html(driver, by, value, default="No encontrado"):
+    """Safely extracts the innerHTML from a web element."""
+    try:
+        element = driver.find_element(by, value)
+        return driver.execute_script("return arguments[0].innerHTML;", element)
+    except Exception:
+        return default
+
 def download_file(driver, url, local_folder=config.DOWNLOADS_FOLDER):
     """Downloads a file from a URL using the browser's session."""
     os.makedirs(local_folder, exist_ok=True)
