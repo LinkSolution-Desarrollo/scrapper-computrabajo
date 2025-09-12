@@ -52,7 +52,7 @@ def scrape_vacancy_details(driver, vacancy_url):
             "valorado": "No encontrado",
             "source": "pandape"
         }
-        utils.send_to_webhook(config.WEBHOOK_EDIT_VACANCY_URL, data_vacante)
+        utils.send_to_webhook(config.WEBHOOK_VACANCY_URL, data_vacante)
 
         # Go back to the candidate list for this vacancy
         driver.get(vacancy_url)

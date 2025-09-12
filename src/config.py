@@ -17,7 +17,7 @@ MINIO_BUCKET = os.environ.get("MINIO_BUCKET")
 BASE_URL = "https://ats.pandape.com"
 LOGIN_URL = f"{BASE_URL}/Company/Vacancy?Pagination[PageNumber]=1&Pagination[PageSize]=1000&Order=1&IdsFilter=2&RecruitmentType=0"
 WEBHOOK_INSERT_URL = "http://10.20.62.101:5678/webhook/insert"
-WEBHOOK_EDIT_VACANCY_URL = "http://10.20.62.101:5678/webhook/editar_vacante"
+WEBHOOK_VACANCY_URL = "http://10.20.62.101:5678/webhook/vacant"
 
 # Local download folder
 DOWNLOADS_FOLDER = "downloads"
