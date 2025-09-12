@@ -46,7 +46,7 @@ def scrape_vacancy_details(driver, vacancy_url):
 
         # 1. Scrape Description
         descripcion_xpath = "//label[contains(text(), 'Descripción')]/following-sibling::div//div[contains(@class, 'ql-editor')]"
-        descripcion = utils.safe_extract_inner_html(driver, By.XPATH, descripcion_xpath)
+        descripcion = utils.safe_extract_text(driver, By.XPATH, descripcion_xpath)
 
         # 2. Scrape Structured Requisitos
         try:
