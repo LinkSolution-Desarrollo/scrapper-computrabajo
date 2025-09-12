@@ -8,23 +8,31 @@ from boto3.session import Config
 from . import config
 
 def safe_extract_text(driver, by, value, default="No encontrado"):
-    """Safely extracts text from a web element."""
+    """Safely extracts text from a web element, scrolling it into view first."""
     try:
-        return driver.find_element(by, value).text.strip()
+        element = driver.find_element(by, value)
+        driver.execute_script("arguments[0].scrollIntoView(true);", element)
+        time.sleep(0.5)  # Wait for scrolling and potential lazy loading
+        return element.text.strip()
     except Exception:
         return default
 
 def safe_extract_attribute(driver, by, value, attribute, default="No encontrado"):
-    """Safely extracts an attribute from a web element."""
+    """Safely extracts an attribute from a web element, scrolling it into view first."""
     try:
-        return driver.find_element(by, value).get_attribute(attribute)
+        element = driver.find_element(by, value)
+        driver.execute_script("arguments[0].scrollIntoView(true);", element)
+        time.sleep(0.5)
+        return element.get_attribute(attribute)
     except Exception:
         return default
 
 def safe_extract_inner_html(driver, by, value, default="No encontrado"):
-    """Safely extracts the innerHTML from a web element."""
+    """Safely extracts the innerHTML from a web element, scrolling it into view first."""
     try:
         element = driver.find_element(by, value)
+        driver.execute_script("arguments[0].scrollIntoView(true);", element)
+        time.sleep(0.5)
         return driver.execute_script("return arguments[0].innerHTML;", element)
     except Exception:
         return default
