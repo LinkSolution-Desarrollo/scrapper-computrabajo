@@ -85,9 +85,44 @@ def _extract_candidate_details(driver, titulo_vacante):
         if local_cv_path and config.MINIO_ENDPOINT:
             utils.upload_to_s3(local_cv_path, dni=dni)
 
-    # ... (Code to extract filter answers, address, summary, etc.)
-    # This part is complex and will be simplified for this example
-    respuestas_filtro_texto = "No implementado en la refactorización"
+    respuestas_filtro_texto = "No disponibles"
+    wait_long = WebDriverWait(driver, 10)
+    try:
+        resultados_tab_xpath = "//a[@id='ResultsTabAjax' or contains(@href,'#ResultsTabAjax')]"
+        resultados_tab_clickable = wait_long.until(EC.element_to_be_clickable((By.XPATH, resultados_tab_xpath)))
+        is_active = "active" in resultados_tab_clickable.get_attribute("class")
+        if not is_active:
+            driver.execute_script("arguments[0].click();", resultados_tab_clickable)
+            WebDriverWait(driver, 10).until(lambda d: "active" in d.find_element(By.XPATH, resultados_tab_xpath).get_attribute("class"))
+
+        ver_respuestas_link_element = wait_long.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.js_lnkQuestionnaireWeightedDetail")))
+        driver.execute_script("arguments[0].click();", ver_respuestas_link_element)
+
+        wait_long.until(EC.visibility_of_element_located((By.ID, "divResult")))
+        preguntas_respuestas_items = wait_long.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "#divResult ol.pl-50 > li")))
+
+        if preguntas_respuestas_items:
+            respuestas_list = []
+            for item in preguntas_respuestas_items:
+                try:
+                    pregunta = item.find_element(By.XPATH, "./span").text.strip()
+                    respuesta_elements = item.find_elements(By.XPATH, "./div/span")
+                    respuesta = respuesta_elements[0].text.strip() if respuesta_elements and respuesta_elements[0].text.strip() else "Respuesta no proporcionada"
+                    respuestas_list.append(f"{pregunta}: {respuesta}")
+                except Exception:
+                    respuestas_list.append("Error al extraer Q&A individual")
+            respuestas_filtro_texto = " | ".join(respuestas_list) if respuestas_list else "No se pudieron extraer preguntas/respuestas individuales."
+        else:
+            respuestas_filtro_texto = "No se encontraron items de preguntas/respuestas en el modal."
+
+        close_button = wait_long.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#divResult button.close")))
+        driver.execute_script("arguments[0].click();", close_button)
+        wait_long.until(EC.invisibility_of_element_located((By.ID, "divResult")))
+
+    except Exception as e_filtro:
+        print(f" No se pudieron obtener las respuestas de filtro: {e_filtro}")
+        respuestas_filtro_texto = "Error al extraer respuestas de filtro."
+
     direccion = utils.safe_extract_text(driver, By.CSS_SELECTOR, "span.js_CandidateAddress")
     resumen = utils.safe_extract_text(driver, By.CSS_SELECTOR, "div#Summary p.text-break-word")
     salario_deseado = utils.safe_extract_text(driver, By.XPATH, "//div[span[contains(., 'Salario deseado')]]/div[contains(@class, 'col-9')]/div")
