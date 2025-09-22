@@ -42,4 +42,4 @@ ENV MINIO_SECRET_KEY=w8p97JgkpHwpV2vzXtUGUc6tYtB8l6e4QBcfGHIC
 ENV MINIO_BUCKET=curriculums
 
 # Comando por defecto para ejecutar el scraper
-CMD ["python", "scraper.py"]
+CMD ["python", "main.py"]
