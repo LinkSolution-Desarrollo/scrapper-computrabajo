@@ -68,7 +68,7 @@ def download_file(driver, url, local_folder=config.DOWNLOADS_FOLDER):
 def upload_to_s3(local_path, dni=None):
     """Uploads a file to an S3-compatible storage (MinIO)."""
     if not dni or dni == "No encontrado":
-        print(" ⚠️ CV sin DNI, no se sube a MinIO")
+        print("  CV sin DNI, no se sube a MinIO")
         return
 
     try:
@@ -89,9 +89,9 @@ def upload_to_s3(local_path, dni=None):
         with open(local_path, "rb") as f:
             s3.upload_fileobj(f, bucket, filename)
 
-        print(f" ✅ Subido a MinIO: {filename}")
+        print(f"  Subido a MinIO: {filename}")
     except Exception as e:
-        print(f" ❌ Error al subir a MinIO: {e}")
+        print(f"  Error al subir a MinIO: {e}")
 
 def send_to_webhook(url, data):
     """Sends data to a specified webhook URL."""

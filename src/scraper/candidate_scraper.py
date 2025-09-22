@@ -171,5 +171,5 @@ def scrape_candidates_for_vacancy(driver, vacancy_url, vacancy_title):
             WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.font-3xl")))
             _extract_candidate_details(driver, vacancy_title)
         except Exception as e:
-            print(f" ❌ Error fatal procesando la URL {candidate_url}: {e}")
+            print(f"  Error fatal procesando la URL {candidate_url}: {e}")
             continue

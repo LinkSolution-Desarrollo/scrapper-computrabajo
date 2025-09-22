@@ -45,7 +45,7 @@ def scrape_vacancy_details(driver, vacancy_url):
         # --- Scrape Detailed Fields ---
 
         # 1. Scrape Description
-        descripcion_xpath = "//label[contains(text(), 'Descripción')]/following-sibling::div//div[contains(@class, 'ql-editor')]"
+        descripcion_xpath = "//div[@class='ql-editor' and @contenteditable='true']"
         descripcion = utils.safe_extract_text(driver, By.XPATH, descripcion_xpath)
 
         # 2. Scrape Structured Requisitos
@@ -109,8 +109,8 @@ def scrape_vacancy_details(driver, vacancy_url):
             fallback_selector = (By.CSS_SELECTOR, "div.secondary-bar-title span.lh-140")
             fallback_element = wait_fallback.until(EC.presence_of_element_located(fallback_selector))
             titulo_vacante_actual = fallback_element.text.strip() or "No encontrado"
-            print(f" ✅ Título encontrado con fallback: {titulo_vacante_actual}")
+            print(f"  Título encontrado con fallback: {titulo_vacante_actual}")
         except Exception as e_fallback:
-            print(f" ❌ Fallback para obtener el título también falló: {e_fallback}")
+            print(f"  Fallback para obtener el título también falló: {e_fallback}")
 
     return titulo_vacante_actual
