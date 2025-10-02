@@ -14,7 +14,7 @@ def _scroll_to_load_all_candidates(driver):
 
     total_candidatos_esperados = 0
     try:
-        inscriptos_element = WebDriverWait(driver, 10).until(
+        inscriptos_element = WebDriverWait(driver, config.SCRAPING_CONFIG["LONG_WAIT_TIME"]).until(
             EC.presence_of_element_located((By.XPATH, "//span[contains(text(), 'Inscriptos')]"))
         )
         match = re.search(r'\((\d+)\)', inscriptos_element.text)
@@ -57,7 +57,7 @@ def _scroll_to_load_all_candidates(driver):
             driver.execute_script("arguments[0].scrollIntoView(true);", candidatos_visibles[-1])
         else:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(3)
+        time.sleep(config.SCRAPING_CONFIG["SCROLL_PAUSE_TIME"])
 
 def _extract_candidate_details(driver, titulo_vacante):
     """Extracts all details for a single candidate from their profile page."""

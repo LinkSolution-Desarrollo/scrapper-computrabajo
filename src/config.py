@@ -21,3 +21,14 @@ WEBHOOK_VACANCY_URL = "http://10.20.62.101:5678/webhook/vacant"
 
 # Local download folder
 DOWNLOADS_FOLDER = "downloads"
+
+# Scraping configuration
+SCRAPING_CONFIG = {
+    "DEFAULT_WAIT_TIME": 3,
+    "LONG_WAIT_TIME": 10,
+    "MAX_RETRIES": 3,
+    "RATE_LIMIT_DELAY": 1,  # seconds between requests
+    "SCROLL_PAUSE_TIME": 2,
+    "DOWNLOAD_TIMEOUT": 30,
+    "WEBHOOK_TIMEOUT": 10
+}
