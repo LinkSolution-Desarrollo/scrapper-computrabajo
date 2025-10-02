@@ -1,24 +1,39 @@
 from src import webdriver_setup, config
 from src.scraper import login, vacancy_scraper, candidate_scraper
+from src import utils
 
+@utils.measure_time("main_process")
 def main():
     """
-    Main function to orchestrate the web scraping process.
+    Main function to orchestrate the web scraping process with performance monitoring.
     """
     driver = None
     try:
+        # Initialize performance monitoring
+        utils.start_performance_monitoring()
+
+        print(" [MAIN] Iniciando proceso de scraping optimizado...")
+
         # 1. Set up WebDriver
         driver = webdriver_setup.get_webdriver()
 
         # 2. Log in
-        login.login(driver)
+        login_success = login.login(driver)
+        if not login_success:
+            print(" [ERROR] No se pudo iniciar sesión. Proceso terminado.")
+            return
 
         # 3. Get all vacancy links
         vacancy_links = vacancy_scraper.get_all_vacancy_links(driver)
+        if not vacancy_links:
+            print(" [ERROR] No se encontraron vacantes. Proceso terminado.")
+            return
+
+        print(f" [MAIN] Procesando {len(vacancy_links)} vacantes...")
 
         # 4. Loop through each vacancy
         for i, vacancy_url in enumerate(vacancy_links):
-            print(f"\n{'='*20} PROCESANDO VACANTE {i + 1}/{len(vacancy_links)} {'='*20}")
+            print(f"\n{'='*20} [VACANTE {i + 1}/{len(vacancy_links)}] {'='*20}")
 
             # It's better to scrape vacancy details and then candidates
             # to ensure we have the correct title.
@@ -27,17 +42,22 @@ def main():
             if vacancy_title != "No encontrado":
                 candidate_scraper.scrape_candidates_for_vacancy(driver, vacancy_url, vacancy_title)
             else:
-                print(f"No se pudo obtener el título de la vacante {vacancy_url}, se omite el scraping de candidatos.")
+                print(f" [SKIP] No se pudo obtener el título de la vacante {vacancy_url}, se omite el scraping de candidatos.")
 
-            print(f"\n{'='*20} FIN DE LA VACANTE {i + 1}/{len(vacancy_links)} {'='*20}")
+            print(f"{'='*20} [FIN VACANTE {i + 1}/{len(vacancy_links)}] {'='*20}")
+
+        # Show performance summary
+        print("\n" + "="*50)
+        print(utils.get_performance_summary())
+        print("="*50)
 
     except Exception as e:
-        print(f"\nOcurrió un error fatal en el proceso principal: {e}")
+        print(f" [FATAL] Ocurrió un error fatal en el proceso principal: {e}")
     finally:
         if driver:
-            print("\nCerrando el navegador...")
+            print(" [CLEANUP] Cerrando el navegador...")
             driver.quit()
-        print("Proceso finalizado.")
+        print(" [MAIN] Proceso finalizado.")
 
 if __name__ == "__main__":
     main()
