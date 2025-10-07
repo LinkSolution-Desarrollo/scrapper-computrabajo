@@ -22,6 +22,16 @@ WEBHOOK_VACANCY_URL = "http://10.20.62.101:5678/webhook/vacant"
 # Local download folder
 DOWNLOADS_FOLDER = "downloads"
 
+# Cache configuration
+CACHE_CONFIG = {
+    "CACHE_ENABLED": False,  # Deshabilitar caché para reducir espacio en disco
+    "CACHE_FILE": "cache/cv_cache.json",
+    "MAX_CACHE_SIZE": 20,    # Reducir tamaño máximo del caché
+    "CACHE_EXPIRY_DAYS": 1,  # Reducir tiempo de expiración a 1 día
+    "AUTO_CLEAN_CACHE": True, # Limpiar automáticamente archivos antiguos
+    "KEEP_LOCAL_FILES": False # No mantener archivos locales después de subir a MinIO
+}
+
 # Scraping configuration
 SCRAPING_CONFIG = {
     "DEFAULT_WAIT_TIME": 3,
@@ -30,5 +40,6 @@ SCRAPING_CONFIG = {
     "RATE_LIMIT_DELAY": 1,  # seconds between requests
     "SCROLL_PAUSE_TIME": 2,
     "DOWNLOAD_TIMEOUT": 30,
-    "WEBHOOK_TIMEOUT": 10
+    "WEBHOOK_TIMEOUT": 10,
+    "DOWNLOADS_CLEANUP_MAX_AGE_HOURS": 1
 }

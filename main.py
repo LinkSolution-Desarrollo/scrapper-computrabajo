@@ -14,6 +14,10 @@ def main():
 
         print(" [MAIN] Iniciando proceso de scraping optimizado...")
 
+        # Limpiar archivos antiguos antes de comenzar
+        print(" [CLEANUP] Limpiando archivos antiguos del directorio de descargas...")
+        utils.cleanup_old_downloads(max_age_hours=config.SCRAPING_CONFIG["DOWNLOADS_CLEANUP_MAX_AGE_HOURS"])  # Limpiar archivos de más de 1 hora
+
         # 1. Set up WebDriver
         driver = webdriver_setup.get_webdriver()
 
@@ -57,6 +61,11 @@ def main():
         if driver:
             print(" [CLEANUP] Cerrando el navegador...")
             driver.quit()
+
+        # Limpiar archivos antiguos al finalizar
+        print(" [CLEANUP] Realizando limpieza final de archivos antiguos...")
+        utils.cleanup_old_downloads(max_age_hours=config.SCRAPING_CONFIG["DOWNLOADS_CLEANUP_MAX_AGE_HOURS"])  # Limpiar archivos de más de 1 hora
+
         print(" [MAIN] Proceso finalizado.")
 
 if __name__ == "__main__":

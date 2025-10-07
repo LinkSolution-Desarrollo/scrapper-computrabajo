@@ -80,7 +80,7 @@ def upload_to_s3(local_path, dni=None):
     """Uploads a file to an S3-compatible storage (MinIO)."""
     if not dni or dni == "No encontrado":
         print("  CV sin DNI, no se sube a MinIO")
-        return
+        return False
 
     try:
         s3 = boto3.client(
@@ -101,8 +101,10 @@ def upload_to_s3(local_path, dni=None):
             s3.upload_fileobj(f, bucket, filename)
 
         print(f"  Subido a MinIO: {filename}")
+        return True
     except Exception as e:
         print(f"  Error al subir a MinIO: {e}")
+        return False
 
 def send_to_webhook(url, data):
     """Sends data to a specified webhook URL with retry logic."""
@@ -211,3 +213,46 @@ Operaciones por tipo:
         summary += f"  {op_name}: {len(times)} ejecuciones, promedio {avg_time:.2f}s, máximo {max_time:.2f}s\n"
 
     return summary
+
+def cleanup_old_downloads(downloads_folder=config.DOWNLOADS_FOLDER, max_age_hours=24):
+    """Limpia archivos antiguos del directorio de descargas para liberar espacio."""
+    try:
+        current_time = time.time()
+        max_age_seconds = max_age_hours * 3600
+
+        if not os.path.exists(downloads_folder):
+            print(f" [CLEANUP] Directorio {downloads_folder} no existe, no hay nada que limpiar")
+            return 0
+
+        cleaned_count = 0
+        total_size_freed = 0
+
+        for filename in os.listdir(downloads_folder):
+            file_path = os.path.join(downloads_folder, filename)
+
+            # Solo procesar archivos (no directorios)
+            if os.path.isfile(file_path):
+                # Verificar antigüedad del archivo
+                file_age = current_time - os.path.getmtime(file_path)
+
+                if max_age_hours <= 0 or file_age > max_age_seconds:
+                    try:
+                        file_size = os.path.getsize(file_path)
+                        os.remove(file_path)
+                        cleaned_count += 1
+                        total_size_freed += file_size
+                        print(f" [CLEANUP] Archivo antiguo eliminado: {filename} ({file_size} bytes)")
+                    except Exception as e:
+                        print(f" [CLEANUP] Error al eliminar {filename}: {e}")
+
+        if cleaned_count > 0:
+            total_size_mb = total_size_freed / (1024 * 1024)
+            print(f" [CLEANUP] Limpieza completada: {cleaned_count} archivos eliminados, {total_size_mb:.2f} MB liberados")
+        else:
+            print(f" [CLEANUP] No se encontraron archivos antiguos para limpiar en {downloads_folder}")
+
+        return cleaned_count
+
+    except Exception as e:
+        print(f" [CLEANUP] Error durante la limpieza: {e}")
+        return 0
