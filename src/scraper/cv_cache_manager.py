@@ -16,12 +16,15 @@ class CVCacheManager:
         self.cache_enabled = config.CACHE_CONFIG["CACHE_ENABLED"]
         self.max_cache_size = config.CACHE_CONFIG["MAX_CACHE_SIZE"]
         self.cache_expiry_days = config.CACHE_CONFIG["CACHE_EXPIRY_DAYS"]
+        self.auto_clean = config.CACHE_CONFIG.get("AUTO_CLEAN_CACHE", True)
 
-        # Crear directorio si no existe
-        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
-
-        # Inicializar caché
-        self._cache = self._load_cache()
+        if self.cache_enabled:
+            # Crear directorio si no existe
+            os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+            # Inicializar caché
+            self._cache = self._load_cache()
+        else:
+            self._cache = {}
 
     def _load_cache(self):
         """Carga el caché desde el archivo JSON."""
@@ -195,6 +198,8 @@ class CVCacheManager:
         entry = self._cache.get(url_hash)
 
         if entry and os.path.exists(entry['local_path']):
+            entry['last_access'] = time.time()
+            self._save_cache()
             return entry['local_path']
 
         return None

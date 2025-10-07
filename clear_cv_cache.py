@@ -7,11 +7,16 @@ Script para limpiar el caché de CVs si es necesario.
 import os
 import sys
 import shutil
+
+# Agregar el directorio src al path para poder importar
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+from src import config
 from src.scraper.cv_cache_manager import cv_cache_manager
 
 def clear_downloads_folder():
     """Limpia la carpeta de downloads."""
-    downloads_folder = "downloads"
+    downloads_folder = config.DOWNLOADS_FOLDER
 
     if os.path.exists(downloads_folder):
         confirm = input(f"¿Estás seguro de que quieres eliminar toda la carpeta '{downloads_folder}'? (s/n): ")

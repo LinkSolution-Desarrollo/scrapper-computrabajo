@@ -16,7 +16,7 @@ def main():
 
         # Limpiar archivos antiguos antes de comenzar
         print(" [CLEANUP] Limpiando archivos antiguos del directorio de descargas...")
-        utils.cleanup_old_downloads(max_age_hours=1)  # Limpiar archivos de más de 1 hora
+        utils.cleanup_old_downloads(max_age_hours=config.SCRAPING_CONFIG["DOWNLOADS_CLEANUP_MAX_AGE_HOURS"])  # Limpiar archivos de más de 1 hora
 
         # 1. Set up WebDriver
         driver = webdriver_setup.get_webdriver()
@@ -64,7 +64,7 @@ def main():
 
         # Limpiar archivos antiguos al finalizar
         print(" [CLEANUP] Realizando limpieza final de archivos antiguos...")
-        utils.cleanup_old_downloads(max_age_hours=1)  # Limpiar archivos de más de 1 hora
+        utils.cleanup_old_downloads(max_age_hours=config.SCRAPING_CONFIG["DOWNLOADS_CLEANUP_MAX_AGE_HOURS"])  # Limpiar archivos de más de 1 hora
 
         print(" [MAIN] Proceso finalizado.")
 

@@ -235,7 +235,7 @@ def cleanup_old_downloads(downloads_folder=config.DOWNLOADS_FOLDER, max_age_hour
                 # Verificar antigüedad del archivo
                 file_age = current_time - os.path.getmtime(file_path)
 
-                if file_age > max_age_seconds:
+                if max_age_hours <= 0 or file_age > max_age_seconds:
                     try:
                         file_size = os.path.getsize(file_path)
                         os.remove(file_path)

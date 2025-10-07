@@ -6,7 +6,6 @@ Script para limpiar manualmente archivos antiguos del directorio de descargas.
 
 import os
 import sys
-from datetime import datetime, timedelta
 
 # Agregar el directorio src al path para poder importar
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
@@ -61,8 +60,8 @@ def main():
             print("Limpiando archivos de más de 24 horas...")
         elif choice == "4":
             confirm = input("¿Estás seguro de que quieres eliminar TODOS los archivos? (si/no): ")
-            if confirm.lower() == "si" or confirm.lower() == "s":
-                max_age_hours = 0  # Todos los archivos
+            if confirm.lower() in ("si", "s"):
+                max_age_hours = -1  # Todos los archivos
                 print("Eliminando TODOS los archivos...")
             else:
                 print("Operación cancelada")
