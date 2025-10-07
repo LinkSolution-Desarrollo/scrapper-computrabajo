@@ -83,7 +83,18 @@ def _extract_candidate_details(driver, titulo_vacante):
     if cv_url != "No encontrado":
         local_cv_path = utils.download_file(driver, cv_url)
         if local_cv_path and config.MINIO_ENDPOINT:
-            utils.upload_to_s3(local_cv_path, dni=dni)
+            # Subir a MinIO/S3
+            upload_success = utils.upload_to_s3(local_cv_path, dni=dni)
+
+            # Si se subió exitosamente, eliminar archivo local para ahorrar espacio
+            if upload_success:
+                try:
+                    os.remove(local_cv_path)
+                    print(f" [CLEANUP] Archivo local eliminado después de subir a MinIO: {os.path.basename(local_cv_path)}")
+                except Exception as e:
+                    print(f" [CLEANUP] Error al eliminar archivo local {local_cv_path}: {e}")
+            else:
+                print(f" [WARNING] No se pudo subir a MinIO, archivo local mantenido: {local_cv_path}")
 
     respuestas_filtro_texto = "No disponibles"
     wait_long = WebDriverWait(driver, 10)
